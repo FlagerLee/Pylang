@@ -1,0 +1,15 @@
+[submodule "thrid-party/fmt"]
+	path = thrid-party/fmt
+	url = git@github.com:fmtlib/fmt.git
+[submodule "thrid-party/llvm-project"]
+	path = thrid-party/llvm-project
+	url = git@github.com:llvm/llvm-project.git
+[submodule "third-party/pybind11"]
+	path = third-party/pybind11
+	url = git@github.com:pybind/pybind11.git
+[submodule "third-party/fmt"]
+	path = third-party/fmt
+	url = git@github.com:fmtlib/fmt.git
+[submodule "third-party/llvm-project"]
+	path = third-party/llvm-project
+	url = git@github.com:llvm/llvm-project.git
