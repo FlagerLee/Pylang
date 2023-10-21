@@ -140,7 +140,7 @@ unsigned Compiler::createConstantString(const string &value,
                                         LocationAdaptor *loc_adaptor) {
   Value val = builder->create<pylang::ConstantOp>(loc_adaptor->getLoc(ctx),
                                                   pylang::StringType::get(ctx),
-                                                  StringAttr::get(ctx, value));
+                                                  StringAttr::get(ctx, value + '\0'));
   return insertSSAValue(val);
 }
 
