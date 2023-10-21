@@ -46,21 +46,24 @@ llvm.func internal @print_none(%0: i32) {
     llvm.return
 }
 
-llvm.func internal @print_int(%0: i32, %1: i32) {
+llvm.func internal @print_int(%1: i32) {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @int_fmt : !llvm.ptr<array<3 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<3 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, i32) -> i32
     llvm.return
 }
 
-llvm.func internal @print_float(%0: i32, %1: f64) {
+llvm.func internal @print_float(%1: f64) {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @float_fmt : !llvm.ptr<array<4 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<4 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, f64) -> i32
     llvm.return
 }
 
-llvm.func internal @print_bool(%0: i32, %1: i1) {
+llvm.func internal @print_bool(%1: i1) {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %zero = llvm.mlir.constant(0 : i1) : i1
     %is_true = llvm.icmp "eq" %zero, %1 : i1
     llvm.cond_br %is_true, ^false, ^true
@@ -76,28 +79,32 @@ llvm.func internal @print_bool(%0: i32, %1: i1) {
     llvm.return
 }
 
-llvm.func internal @print_string(%0: i32, %1: !llvm.ptr<i8>) {
+llvm.func internal @print_string(%1: !llvm.ptr<i8>) {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @string_fmt : !llvm.ptr<array<3 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<3 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> i32
     llvm.return
 }
 
-llvm.func internal @print_ws(%0: i32) {
+llvm.func internal @print_ws() {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @ws : !llvm.ptr<array<2 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<2 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
 }
 
-llvm.func internal @print_nl(%0: i32) {
+llvm.func internal @print_nl() {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @nl : !llvm.ptr<array<2 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<2 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
 }
 
-llvm.func internal @print_no_type(%0: i32, %1: i32) {
+llvm.func internal @print_no_type(%1: i32) {
+    %0 = llvm.mlir.constant(0: i32) : i32
     %addr = llvm.mlir.addressof @no_type : !llvm.ptr<array<49 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<49 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, i32) -> i32
@@ -138,32 +145,32 @@ llvm.func @print(%arg0: !llvm.ptr<struct<(ptr<struct<(ptr, i32)>>, i32)>>) attri
     llvm.br ^sw.epilog
 ^sw.1:
     %int = llvm.load %unknown_data : !llvm.ptr -> i32
-    llvm.call @print_int(%0, %int) : (i32, i32) -> ()
+    llvm.call @print_int(%int) : (i32) -> ()
     llvm.br ^sw.epilog
 ^sw.2:
     %float = llvm.load %unknown_data : !llvm.ptr -> f64
-    llvm.call @print_float(%0, %float) : (i32, f64) -> ()
+    llvm.call @print_float(%float) : (f64) -> ()
     llvm.br ^sw.epilog
 ^sw.3:
     %bool = llvm.load %unknown_data : !llvm.ptr -> i1
-    llvm.call @print_bool(%0, %bool) : (i32, i1) -> ()
+    llvm.call @print_bool(%bool) : (i1) -> ()
     llvm.br ^sw.epilog
 ^sw.4:
     %string = llvm.load %unknown_data : !llvm.ptr -> !llvm.ptr<i8>
-    llvm.call @print_string(%0, %string) : (i32, !llvm.ptr<i8>) -> ()
+    llvm.call @print_string(%string) : (!llvm.ptr<i8>) -> ()
     llvm.br ^sw.epilog
 ^sw.default:
-    llvm.call @print_no_type(%0, %unknown_type) : (i32, i32) -> ()
+    llvm.call @print_no_type(%unknown_type) : (i32) -> ()
     llvm.return
 ^sw.epilog:
     %3 = llvm.add %i, %1 : i32
     %is_end = llvm.icmp "eq" %3, %entry_size : i32
     llvm.cond_br %is_end, ^print_nl, ^print_ws
 ^print_ws:
-    llvm.call @print_ws(%0) : (i32) -> ()
+    llvm.call @print_ws() : () -> ()
     llvm.br ^for.inc
 ^print_nl:
-    llvm.call @print_nl(%0) : (i32) -> ()
+    llvm.call @print_nl() : () -> ()
     llvm.br ^for.inc
 ^for.inc:                                           // preds = ^for.body
     %inc = llvm.add %i, %1 : i32
