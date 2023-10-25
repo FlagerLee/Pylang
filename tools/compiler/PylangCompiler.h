@@ -61,6 +61,8 @@ public:
 
   unsigned createConstantString(const string &, LocationAdaptor *);
 
+  unsigned createTuple(const std::vector<unsigned> &, LocationAdaptor *);
+
   // createFunction does not accept return type because return type must be
   // tuple
   void createFunction(const string &, const std::vector<MlirType> &,
@@ -69,6 +71,8 @@ public:
 
   unsigned createCall(const string &, const std::vector<unsigned> &,
                       LocationAdaptor *);
+
+  unsigned createAdd(const unsigned, const unsigned, LocationAdaptor *);
 
   void createReturn(std::optional<const unsigned>, LocationAdaptor *);
 

@@ -27,14 +27,14 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/Target/LLVMIR/ModuleTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace py = pybind11;
 
@@ -56,6 +56,7 @@ PYBIND11_MODULE(PylangCompiler, m) {
       .def("createConstantString", &Compiler::createConstantString,
            py::arg("value"), py::arg("loc"),
            "Create pylang.constant with python string")
+      .def("createTuple", &Compiler::createTuple, py::arg("ssa_operands"), py::arg("loc"), "Create tuple with several ssa arguments")
       .def("createFunction", &Compiler::createFunction,
            py::arg("function_name"), py::arg("input_type"),
            py::arg("function_attribute"), py::arg("loc"), "Create pylang.func")
@@ -63,6 +64,8 @@ PYBIND11_MODULE(PylangCompiler, m) {
            py::arg("ssa_operands"), py::arg("loc"), "Create pylang.call")
       .def("createReturn", &Compiler::createReturn, py::arg("ssa"),
            py::arg("loc"), "Create pylang.return")
+      .def("createAdd", &Compiler::createAdd, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.add")
       .def("lowerToLLVM", &Compiler::lowerToLLVM, "Lower pylang to llvm")
       .def("dump", &Compiler::dump)
       .def("emitLLVMIR", &Compiler::emitLLVMIR)
@@ -87,7 +90,7 @@ Compiler::Compiler() : has_main(false) {
   // Initialize builtin functions
   ssa2value_map.emplace_back();
   symbol_map.emplace_back();
-  ssa_counter.emplace(0);
+  ssa_counter.emplace(1);
   auto &builtin_map = symbol_map[0];
   // print
   builtin_map.insert(
@@ -138,10 +141,27 @@ unsigned Compiler::createConstantBool(bool value,
 
 unsigned Compiler::createConstantString(const string &value,
                                         LocationAdaptor *loc_adaptor) {
-  Value val = builder->create<pylang::ConstantOp>(loc_adaptor->getLoc(ctx),
-                                                  pylang::StringType::get(ctx),
-                                                  StringAttr::get(ctx, value + '\0'));
+  Value val = builder->create<pylang::ConstantOp>(
+      loc_adaptor->getLoc(ctx), pylang::StringType::get(ctx),
+      StringAttr::get(ctx, value + '\0'));
   return insertSSAValue(val);
+}
+
+unsigned Compiler::createTuple(const std::vector<unsigned> &ssa_operands, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  std::vector<Value> operands;
+  auto &value_map = ssa2value_map.back();
+  for(auto ssa : ssa_operands) {
+    auto it = value_map.find(ssa);
+    if(it == value_map.end()) {
+      emitError(loc)
+          << "Cannot find ssa value " << ssa << "\n";
+      exit(1);
+    }
+    operands.push_back(it->second);
+  }
+  Value res = builder->create<pylang::TupleOp>(loc, ValueRange(operands));
+  return insertSSAValue(res);
 }
 
 void Compiler::createFunction(
@@ -187,7 +207,7 @@ void Compiler::createFunction(
         sym_map.insert(std::make_pair(
             name, std::make_pair(SymbolRefAttr::get(ctx, confused_name),
                                  pylang::ListType::get(ctx))));
-      ssa_counter.emplace(0);
+      ssa_counter.emplace(1);
       ssa2value_map.emplace_back();
       symbol_map.emplace_back();
       region_name.push_back(name);
@@ -223,7 +243,7 @@ unsigned Compiler::createCall(const string &name,
     auto it = value_map.find(ssa);
     if (it == value_map.end()) {
       emitError(loc_adaptor->getLoc(ctx))
-          << "Cannot find ssa value %" << ssa << "\n";
+          << "Cannot find ssa value " << ssa << "\n";
       exit(1);
     }
     operands.push_back(it->second);
@@ -248,10 +268,83 @@ void Compiler::createReturn(std::optional<const unsigned> ssa,
   auto it = ssa2value_map.back().find(*ssa);
   if (it == ssa2value_map.back().end()) {
     emitError(loc_adaptor->getLoc(ctx))
-        << "Cannot find ssa value %" << *ssa << "\n";
+        << "Cannot find ssa value " << *ssa << "\n";
     exit(1);
   }
   builder->create<pylang::ReturnOp>(loc_adaptor->getLoc(ctx), it->second);
+}
+
+unsigned Compiler::createAdd(const unsigned lhs_ssa, const unsigned rhs_ssa,
+                             LocationAdaptor *loc_adaptor) {
+  auto lhs_it = ssa2value_map.back().find(lhs_ssa);
+  auto rhs_it = ssa2value_map.back().find(rhs_ssa);
+  if (lhs_it == ssa2value_map.back().end()) {
+    emitError(loc_adaptor->getLoc(ctx))
+        << "Cannot find ssa value " << lhs_ssa << "\n";
+    exit(1);
+  }
+  if (rhs_it == ssa2value_map.back().end()) {
+    emitError(loc_adaptor->getLoc(ctx))
+        << "Cannot find ssa value " << rhs_ssa << "\n";
+    exit(1);
+  }
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = lhs_it->second;
+  Value rhs = rhs_it->second;
+  Type lhs_t = lhs.getType();
+  Type rhs_t = rhs.getType();
+  // choose add operation due to types
+  Value res;
+  if (isa<pylang::UnknownType>(lhs_t) || isa<pylang::UnknownType>(rhs_t))
+    res = builder->create<pylang::UnknownAddOp>(loc, lhs, rhs);
+  else if ((isa<pylang::StringType>(lhs_t) && isa<pylang::StringType>(rhs_t)) ||
+           (isa<pylang::ListType>(lhs_t) && isa<pylang::ListType>(rhs_t)) ||
+           (isa<pylang::TupleType>(lhs_t) && isa<pylang::TupleType>(rhs_t)))
+    res = builder->create<pylang::ConcatOp>(loc, lhs, rhs);
+  else if (isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(
+               lhs_t) &&
+           isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(rhs_t)) {
+    // cast lhs or rhs to the same type
+    Value casted_lhs, casted_rhs;
+    if(isa<pylang::FloatType>(lhs_t)) {
+      casted_lhs = lhs;
+      if(!isa<pylang::FloatType>(rhs_t))
+        casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
+      else
+        casted_rhs = rhs;
+    }
+    else if(isa<pylang::IntegerType>(lhs_t)) {
+      if(isa<pylang::FloatType>(rhs_t)) {
+        casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
+        casted_rhs = rhs;
+      }
+      else if(isa<pylang::BoolType>(rhs_t)) {
+        casted_lhs = lhs;
+        casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
+      }
+      else {
+        casted_lhs = lhs;
+        casted_rhs = rhs;
+      }
+    }
+    else {
+      if(isa<pylang::BoolType>(rhs_t)) {
+        casted_lhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), lhs);
+        casted_rhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), rhs);
+      }
+      else {
+        casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
+        casted_rhs = rhs;
+      }
+    }
+    res = builder->create<pylang::AddOp>(loc, casted_lhs, casted_rhs);
+  }
+  else {
+    emitError(loc) << "Unable to create add: " << lhs_t << " + " << rhs_t
+                   << "\n";
+    exit(1);
+  }
+  return insertSSAValue(res);
 }
 
 //===-------------------------------------------------------------------===//
@@ -272,8 +365,9 @@ bool Compiler::emitLLVMIR() {
   mlir::registerBuiltinDialectTranslation(*mod->getContext());
   mlir::registerLLVMDialectTranslation(*mod->getContext());
   llvm::LLVMContext llvmContext;
-  std::unique_ptr<llvm::Module> llvmModule = mlir::translateModuleToLLVMIR(mod, llvmContext);
-  if(!llvmModule) {
+  std::unique_ptr<llvm::Module> llvmModule =
+      mlir::translateModuleToLLVMIR(mod, llvmContext);
+  if (!llvmModule) {
     llvm::errs() << "Failed to emit LLVM IR\n";
     return false;
   }

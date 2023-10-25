@@ -32,6 +32,16 @@ class PythonVisitor(ast.NodeVisitor):
         with open(self.fp, "r") as f:
             self.visit(ast.parse(f.read()))
 
+    def visit_Tuple(self, node: ast.Tuple) -> Any:
+        node_loc = FileLineColLocAdaptor(self.fp, node.lineno, node.col_offset)
+        ssa_operands = []
+        for elt in node.elts:
+            ssa_operands.append(self.visit(elt))
+        return self.compiler.createTuple(ssa_operands, node_loc)
+
+    def visit_List(self, node: ast.List) -> Any:
+        pass
+
     def visit_Assign(self, node: ast.Assign) -> Any:
         ssa = self.visit(node.value)
         for target in node.targets:
@@ -52,7 +62,23 @@ class PythonVisitor(ast.NodeVisitor):
         pass
 
     def visit_BinOp(self, node: ast.BinOp) -> Any:
-        pass
+        node_loc = FileLineColLocAdaptor(self.fp, node.lineno, node.col_offset)
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.right)
+        op = node.op
+        if isinstance(op, ast.Add):
+            return self.compiler.createAdd(lhs, rhs, node_loc)
+        elif isinstance(op, ast.Sub):
+            pass
+        elif isinstance(op, ast.Mult):
+            pass
+        # TODO: ast.Matmult
+        elif isinstance(op, ast.Div):
+            pass
+        elif isinstance(op, ast.Mod):
+            pass
+        elif isinstance(op, ast.Pow):
+            pass
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         pass
@@ -92,11 +118,11 @@ class PythonVisitor(ast.NodeVisitor):
 def filegenerator(filepath: str):
     visitor = PythonVisitor(filepath)
     visitor.compile()
-    #visitor.compiler.dump()
-    visitor.compiler.lowerToLLVM()
+    visitor.compiler.dump()
+    #visitor.compiler.lowerToLLVM()
     #visitor.compiler.dump()
     #visitor.compiler.emitLLVMIR()
-    visitor.compiler.runJIT()
+    #visitor.compiler.runJIT()
 
 
 if __name__ == '__main__':

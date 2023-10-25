@@ -74,7 +74,7 @@ add_subdirectory(third-party/pybind11)
 #-------------------------------------------------------------------------------
 
 include(MLIRDetectPythonEnv)
-mlir_configure_python_dev_packages()
+find_package (Python3 3.10 EXACT COMPONENTS Interpreter)
 
 set(PYLANG_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
 set(MLIR_ENABLE_BINDINGS_PYTHON=ON)
