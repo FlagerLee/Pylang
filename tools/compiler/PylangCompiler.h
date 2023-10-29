@@ -23,11 +23,11 @@
 #include <vector>
 
 #include "mlir/CAPI/Support.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassManager.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Location.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 
 #include "llvm/IR/Module.h"
 
@@ -54,13 +54,9 @@ public:
   // TODO: current function can only accept 32-bit integer. Use string to pass
   // unlimited precision integer.
   unsigned createConstantInt(int, LocationAdaptor *);
-
   unsigned createConstantFloat(float, LocationAdaptor *);
-
   unsigned createConstantBool(bool, LocationAdaptor *);
-
   unsigned createConstantString(const string &, LocationAdaptor *);
-
   unsigned createTuple(const std::vector<unsigned> &, LocationAdaptor *);
 
   // createFunction does not accept return type because return type must be
@@ -68,11 +64,21 @@ public:
   void createFunction(const string &, const std::vector<MlirType> &,
                       std::optional<std::vector<MlirAttribute>>,
                       LocationAdaptor *);
-
   unsigned createCall(const string &, const std::vector<unsigned> &,
                       LocationAdaptor *);
 
-  unsigned createAdd(const unsigned, const unsigned, LocationAdaptor *);
+  unsigned createAdd(unsigned, unsigned, LocationAdaptor *);
+  unsigned createSub(unsigned, unsigned, LocationAdaptor *);
+  unsigned createMul(unsigned, unsigned, LocationAdaptor *);
+  unsigned createDiv(unsigned, unsigned, LocationAdaptor *);
+  unsigned createMod(unsigned, unsigned, LocationAdaptor *);
+  unsigned createPow(unsigned, unsigned, LocationAdaptor *);
+  unsigned createLShift(unsigned, unsigned, LocationAdaptor *);
+  unsigned createRShift(unsigned, unsigned, LocationAdaptor *);
+  unsigned createBitOr(unsigned, unsigned, LocationAdaptor *);
+  unsigned createBitXor(unsigned, unsigned, LocationAdaptor *);
+  unsigned createBitAnd(unsigned, unsigned, LocationAdaptor *);
+  unsigned createFloorDiv(unsigned, unsigned, LocationAdaptor *);
 
   void createReturn(std::optional<const unsigned>, LocationAdaptor *);
 
@@ -110,12 +116,14 @@ private:
 class LocationAdaptor {
 public:
   virtual Location getLoc(MLIRContext *ctx) = 0;
+  virtual ~LocationAdaptor() = default;
 };
 
 class FileLineColLocAdaptor : LocationAdaptor {
 public:
   FileLineColLocAdaptor(string file_name, unsigned line, unsigned column)
       : file_name(std::move(file_name)), line(line), column(column) {}
+  ~FileLineColLocAdaptor() override = default;
   Location getLoc(MLIRContext *ctx) override {
     return FileLineColLoc::get(ctx, file_name, line, column);
   }

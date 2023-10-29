@@ -374,17 +374,93 @@ struct CallOpLowering : public OpConversionPattern<pylang::CallOp> {
 struct ReturnOpLowering : public OpConversionPattern<pylang::ReturnOp> {
   using OpConversionPattern<pylang::ReturnOp>::OpConversionPattern;
 
-  explicit ReturnOpLowering(MLIRContext *context, TypeConverter &converter)
-      : OpConversionPattern(converter, context) {}
+  explicit ReturnOpLowering(MLIRContext *context)
+      : OpConversionPattern(context) {}
 
   LogicalResult
   matchAndRewrite(pylang::ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     auto loc = op->getLoc();
 
-    auto ret = rewriter.create<LLVM::ReturnOp>(loc, op->getOperands());
+    auto ret = rewriter.create<LLVM::ReturnOp>(loc, adaptor.getOperands());
 
     rewriter.replaceOp(op, ret);
+    return success();
+  }
+};
+struct CastOpLowering : public OpConversionPattern<pylang::CastOp> {
+  using OpConversionPattern<pylang::CastOp>::OpConversionPattern;
+
+  explicit CastOpLowering(MLIRContext *context, TypeConverter &converter)
+      : OpConversionPattern<pylang::CastOp>(converter, context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::CastOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+    const auto &converter = *getTypeConverter<PylangTypeConverter>();
+
+    Type from_ty = op.getValue().getType(), to_ty = op.getResult().getType();
+    Value input = adaptor.getValue();
+    Value res = input;
+    // float -> *
+    if(isa<pylang::FloatType>(from_ty)) {
+      // float -> int
+      if(isa<pylang::IntegerType>(to_ty)) {
+        res = rewriter.create<arith::FPToSIOp>(loc, converter.convertType(to_ty), input);
+      }
+      // float -> bool
+      else if(isa<pylang::BoolType>(to_ty)) {
+        Value fzero = rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(converter.convertType(from_ty), 0.0));
+        res = rewriter.create<arith::CmpFOp>(loc, converter.convertType(to_ty), arith::CmpFPredicate::ONE, input, fzero);
+      }
+    }
+    // int -> *
+    else if(isa<pylang::IntegerType>(from_ty)) {
+      // int -> float
+      if(isa<pylang::FloatType>(to_ty)) {
+        res = rewriter.create<arith::SIToFPOp>(loc, converter.convertType(to_ty), input);
+      }
+      // int -> bool
+      else if(isa<pylang::BoolType>(to_ty)) {
+        Value zero = rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(converter.convertType(from_ty), 0));
+        res = rewriter.create<arith::CmpIOp>(loc, converter.convertType(to_ty), arith::CmpIPredicate::ne, input, zero);
+      }
+    }
+    // bool -> *
+    else if(isa<pylang::BoolType>(from_ty)) {
+      // bool -> float
+      if(isa<pylang::FloatType>(to_ty)) {
+        res = rewriter.create<arith::UIToFPOp>(loc, converter.convertType(to_ty), input);
+      }
+      // bool -> int
+      else if(isa<pylang::IntegerType>(to_ty)) {
+        res = rewriter.create<arith::ExtUIOp>(loc, converter.convertType(to_ty), input);
+      }
+    }
+    if(res == input)
+      return emitError(loc) << "Unsupported type cast: from " << from_ty << " to " << to_ty;
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct AddOpLowering : public OpConversionPattern<pylang::AddOp> {
+  using OpConversionPattern<pylang::AddOp>::OpConversionPattern;
+
+  explicit AddOpLowering(MLIRContext *context)
+      : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::AddOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if(isa<pylang::IntegerType>(op.getResult().getType()))
+      res = rewriter.create<arith::AddIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    else
+      res = rewriter.create<arith::AddFOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
     return success();
   }
 };
@@ -396,7 +472,9 @@ populateLowerPylangConversionPatterns(RewritePatternSet &patterns,
   patterns.add<ConstantOpLowering>(patterns.getContext(), converter);
   patterns.add<FuncOpLowering>(patterns.getContext(), converter);
   patterns.add<CallOpLowering>(patterns.getContext(), converter);
-  patterns.add<ReturnOpLowering>(patterns.getContext(), converter);
+  patterns.add<ReturnOpLowering>(patterns.getContext());
+  patterns.add<CastOpLowering>(patterns.getContext(), converter);
+  patterns.add<AddOpLowering>(patterns.getContext());
 }
 
 namespace {

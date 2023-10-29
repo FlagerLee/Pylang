@@ -56,7 +56,8 @@ PYBIND11_MODULE(PylangCompiler, m) {
       .def("createConstantString", &Compiler::createConstantString,
            py::arg("value"), py::arg("loc"),
            "Create pylang.constant with python string")
-      .def("createTuple", &Compiler::createTuple, py::arg("ssa_operands"), py::arg("loc"), "Create tuple with several ssa arguments")
+      .def("createTuple", &Compiler::createTuple, py::arg("ssa_operands"),
+           py::arg("loc"), "Create tuple with several ssa arguments")
       .def("createFunction", &Compiler::createFunction,
            py::arg("function_name"), py::arg("input_type"),
            py::arg("function_attribute"), py::arg("loc"), "Create pylang.func")
@@ -147,15 +148,15 @@ unsigned Compiler::createConstantString(const string &value,
   return insertSSAValue(val);
 }
 
-unsigned Compiler::createTuple(const std::vector<unsigned> &ssa_operands, LocationAdaptor *loc_adaptor) {
+unsigned Compiler::createTuple(const std::vector<unsigned> &ssa_operands,
+                               LocationAdaptor *loc_adaptor) {
   Location loc = loc_adaptor->getLoc(ctx);
   std::vector<Value> operands;
   auto &value_map = ssa2value_map.back();
-  for(auto ssa : ssa_operands) {
+  for (auto ssa : ssa_operands) {
     auto it = value_map.find(ssa);
-    if(it == value_map.end()) {
-      emitError(loc)
-          << "Cannot find ssa value " << ssa << "\n";
+    if (it == value_map.end()) {
+      emitError(loc) << "Cannot find ssa value " << ssa << "\n";
       exit(1);
     }
     operands.push_back(it->second);
@@ -274,7 +275,7 @@ void Compiler::createReturn(std::optional<const unsigned> ssa,
   builder->create<pylang::ReturnOp>(loc_adaptor->getLoc(ctx), it->second);
 }
 
-unsigned Compiler::createAdd(const unsigned lhs_ssa, const unsigned rhs_ssa,
+unsigned Compiler::createAdd(unsigned lhs_ssa, unsigned rhs_ssa,
                              LocationAdaptor *loc_adaptor) {
   auto lhs_it = ssa2value_map.back().find(lhs_ssa);
   auto rhs_it = ssa2value_map.back().find(rhs_ssa);
@@ -303,43 +304,40 @@ unsigned Compiler::createAdd(const unsigned lhs_ssa, const unsigned rhs_ssa,
     res = builder->create<pylang::ConcatOp>(loc, lhs, rhs);
   else if (isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(
                lhs_t) &&
-           isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(rhs_t)) {
+           isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(
+               rhs_t)) {
     // cast lhs or rhs to the same type
     Value casted_lhs, casted_rhs;
-    if(isa<pylang::FloatType>(lhs_t)) {
+    if (isa<pylang::FloatType>(lhs_t)) {
       casted_lhs = lhs;
-      if(!isa<pylang::FloatType>(rhs_t))
+      if (!isa<pylang::FloatType>(rhs_t))
         casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
       else
         casted_rhs = rhs;
-    }
-    else if(isa<pylang::IntegerType>(lhs_t)) {
-      if(isa<pylang::FloatType>(rhs_t)) {
+    } else if (isa<pylang::IntegerType>(lhs_t)) {
+      if (isa<pylang::FloatType>(rhs_t)) {
         casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
         casted_rhs = rhs;
-      }
-      else if(isa<pylang::BoolType>(rhs_t)) {
+      } else if (isa<pylang::BoolType>(rhs_t)) {
         casted_lhs = lhs;
         casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
-      }
-      else {
+      } else {
         casted_lhs = lhs;
         casted_rhs = rhs;
       }
-    }
-    else {
-      if(isa<pylang::BoolType>(rhs_t)) {
-        casted_lhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), lhs);
-        casted_rhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), rhs);
-      }
-      else {
+    } else {
+      if (isa<pylang::BoolType>(rhs_t)) {
+        casted_lhs = builder->create<pylang::CastOp>(
+            loc, pylang::IntegerType::get(ctx, 32), lhs);
+        casted_rhs = builder->create<pylang::CastOp>(
+            loc, pylang::IntegerType::get(ctx, 32), rhs);
+      } else {
         casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
         casted_rhs = rhs;
       }
     }
     res = builder->create<pylang::AddOp>(loc, casted_lhs, casted_rhs);
-  }
-  else {
+  } else {
     emitError(loc) << "Unable to create add: " << lhs_t << " + " << rhs_t
                    << "\n";
     exit(1);

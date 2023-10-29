@@ -1,2 +1,6 @@
 print(1 + 2)
-print((1, 2) + (3, 4))
+print(1.2 + 2.3)
+print(True + False)
+print(1 + True)
+print(1.2 + True)
+print(1.2 + 1)

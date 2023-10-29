@@ -31,58 +31,6 @@
 using namespace mlir;
 
 //===-------------------------------------------------------------------===//
-// Tool function
-//===-------------------------------------------------------------------===//
-
-// This function comes from llvm-project
-// llvm-project/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-static mlir::ParseResult parseBinaryOp(mlir::OpAsmParser &parser,
-                                       mlir::OperationState &result) {
-  SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> operands;
-  SMLoc operandsLoc = parser.getCurrentLocation();
-  Type type;
-  if (parser.parseOperandList(operands, /*requiredOperandCount=*/2) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(type))
-    return mlir::failure();
-
-  // If the type is a function type, it contains the input and result types of
-  // this operation.
-  if (FunctionType funcType = llvm::dyn_cast<FunctionType>(type)) {
-    if (parser.resolveOperands(operands, funcType.getInputs(), operandsLoc,
-                               result.operands))
-      return mlir::failure();
-    result.addTypes(funcType.getResults());
-    return mlir::success();
-  }
-
-  // Otherwise, the parsed type is the type of both operands and results.
-  if (parser.resolveOperands(operands, type, result.operands))
-    return mlir::failure();
-  result.addTypes(type);
-  return mlir::success();
-}
-
-// This function comes from llvm-project
-// llvm-project/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-static void printBinaryOp(mlir::OpAsmPrinter &printer, mlir::Operation *op) {
-  printer << " " << op->getOperands();
-  printer.printOptionalAttrDict(op->getAttrs());
-  printer << " : ";
-
-  // If all of the types are the same, print the type directly.
-  Type resultType = *op->result_type_begin();
-  if (llvm::all_of(op->getOperandTypes(),
-                   [=](Type type) { return type == resultType; })) {
-    printer << resultType;
-    return;
-  }
-
-  // Otherwise, print a functional type.
-  printer.printFunctionalType(op->getOperandTypes(), op->getResultTypes());
-}
-
-//===-------------------------------------------------------------------===//
 // ConstantOp
 //===-------------------------------------------------------------------===//
 
@@ -120,7 +68,6 @@ OpFoldResult pylang::ConstantOp::fold(FoldAdaptor adaptor) {
 // TupleOp
 //===-------------------------------------------------------------------===//
 
-// pylang.tuple operands attr-dict :
 ParseResult pylang::TupleOp::parse(OpAsmParser &parser,
                                    OperationState &result) {
   SmallVector<OpAsmParser::UnresolvedOperand> operands;
@@ -146,20 +93,27 @@ ParseResult pylang::TupleOp::parse(OpAsmParser &parser,
 }
 
 void pylang::TupleOp::print(::mlir::OpAsmPrinter &p) {
-  printBinaryOp(p, *this);
+  Operation *op = *this;
+  p << " " << op->getOperands();
+  p.printOptionalAttrDict(op->getAttrs());
+  p << " : ";
+
+  // If all of the types are the same, print the type directly.
+  Type resultType = *op->result_type_begin();
+  if (llvm::all_of(op->getOperandTypes(),
+                   [=](Type type) { return type == resultType; })) {
+    p << resultType;
+    return;
+  }
+
+  // Otherwise, print a functional type.
+  p.printFunctionalType(op->getOperandTypes(), op->getResultTypes());
 }
 
 LogicalResult pylang::TupleOp::verify() {
   if (!isa<pylang::TupleType>(getResult().getType()))
     return emitOpError("TupleOp should return tuple type");
   return success();
-}
-
-void pylang::TupleOp::build(::mlir::OpBuilder &odsBuilder,
-                            ::mlir::OperationState &odsState,
-                            ValueRange operands) {
-  build(odsBuilder, odsState, pylang::TupleType::get(odsBuilder.getContext()),
-        operands);
 }
 
 //===-------------------------------------------------------------------===//
@@ -197,22 +151,24 @@ LogicalResult pylang::CastOp::verify() {
 }
 
 bool pylang::CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
-  if(inputs.size() != 1 || outputs.size() != 1)
+  if (inputs.size() != 1 || outputs.size() != 1)
     return false;
   Type input = inputs[0];
   Type output = outputs[0];
   bool input_is_unknown = isa<pylang::UnknownType>(input);
   bool output_is_unknown = isa<pylang::UnknownType>(output);
-  if(input_is_unknown ^ output_is_unknown) return true;
+  if (input_is_unknown ^ output_is_unknown)
+    return true;
   // cast target type can only be (without unknown) bool, int, float, string
   // TODO: add cast target byte, etc.
-  if(!isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType, pylang::StringType>(output))
+  if (!isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType,
+           pylang::StringType>(output))
     return false;
-  if(isa<pylang::NoneType>(input))
+  if (isa<pylang::NoneType>(input))
     return isa<pylang::BoolType>(output);
-  if(isa<pylang::StringType>(input))
+  if (isa<pylang::StringType>(input))
     return isa<pylang::IntegerType, pylang::BoolType>(output);
-  if(isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(input))
+  if (isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(input))
     return true;
   return isa<pylang::StringType>(output);
 }
@@ -319,73 +275,31 @@ LogicalResult pylang::ReturnOp::verify() {
 // AddOp
 //===-------------------------------------------------------------------===//
 
-ParseResult pylang::AddOp::parse(OpAsmParser &parser, OperationState &result) {
-  return parseBinaryOp(parser, result);
-}
-
-void pylang::AddOp::print(OpAsmPrinter &p) { printBinaryOp(p, *this); }
-
 LogicalResult pylang::AddOp::verify() {
-  operand_type_range types = getOperandTypes();
-  Type res_type = getType();
-  if (types.size() != 2)
-    return emitOpError("incorrect number of operands");
-  if (types[0] != types[1] || types[0] != res_type)
-    return emitOpError("type of operands and return type mismatch");
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(types[0]))
-    return emitOpError("add op supports int and float only, "
-                       "current type is ")
-           << types[0];
-
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("AddOp supports int and float only, current type is ")
+           << res_type;
   return success();
-}
-
-void pylang::AddOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-                          Value lhs, Value rhs) {
-  build(odsBuilder, odsState, lhs.getType(), lhs, rhs);
 }
 
 //===-------------------------------------------------------------------===//
 // ConcatOp
 //===-------------------------------------------------------------------===//
 
-ParseResult pylang::ConcatOp::parse(OpAsmParser &parser,
-                                    OperationState &result) {
-  return parseBinaryOp(parser, result);
-}
-
-void pylang::ConcatOp::print(OpAsmPrinter &p) { printBinaryOp(p, *this); }
-
 LogicalResult pylang::ConcatOp::verify() {
-  operand_type_range types = getOperandTypes();
-  Type res_type = getType();
-  if (types.size() != 2)
-    return emitOpError("incorrect number of operands");
-  if (types[0] != types[1] || types[0] != res_type)
-    return emitOpError("type of operands and return type mismatch");
+  Type res_type = getResult().getType();
   if (!llvm::isa<pylang::StringType, pylang::ListType, pylang::TupleType>(
-          types[0]))
-    return emitOpError("concat op can only concatenate string, list and tuple, "
+          res_type))
+    return emitOpError("ConcatOp can only concatenate string, list and tuple, "
                        "current type is ")
-           << types[0];
+           << res_type;
   return success();
-}
-
-void pylang::ConcatOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-                             Value lhs, Value rhs) {
-  build(odsBuilder, odsState, lhs.getType(), lhs, rhs);
 }
 
 //===-------------------------------------------------------------------===//
 // UnknownAddOp
 //===-------------------------------------------------------------------===//
-
-ParseResult pylang::UnknownAddOp::parse(OpAsmParser &parser,
-                                        OperationState &result) {
-  return parseBinaryOp(parser, result);
-}
-
-void pylang::UnknownAddOp::print(OpAsmPrinter &p) { printBinaryOp(p, *this); }
 
 LogicalResult pylang::UnknownAddOp::verify() {
   operand_type_range types = getOperandTypes();
@@ -395,17 +309,179 @@ LogicalResult pylang::UnknownAddOp::verify() {
 
   if (!llvm::isa<pylang::UnknownType>(types[0]) &&
       !llvm::isa<pylang::UnknownType>(types[1]))
-    emitOpError("UAddOp requires at least one unknown types as its operands");
+    return emitOpError(
+        "UAddOp requires at least one unknown types as its operands");
   if (!llvm::isa<pylang::UnknownType>(res_type))
-    emitOpError("UAddOp result type must be unknown, current type is ")
-        << res_type;
+    return emitOpError("UAddOp result type must be unknown, current type is ")
+           << res_type;
 
   return success();
 }
 
-void pylang::UnknownAddOp::build(OpBuilder &odsBuilder,
-                                 OperationState &odsState, Value lhs,
-                                 Value rhs) {
-  build(odsBuilder, odsState, pylang::UnknownType::get(odsBuilder.getContext()),
-        lhs, rhs);
+//===-------------------------------------------------------------------===//
+// SubOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::SubOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("SubOp supports int and float only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// UnknownSubOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::UnknownSubOp::verify() {
+  operand_type_range types = getOperandTypes();
+  Type res_type = getType();
+  if (types.size() != 2)
+    return emitOpError("incorrect number of operands");
+
+  if (!llvm::isa<pylang::UnknownType>(types[0]) &&
+      !llvm::isa<pylang::UnknownType>(types[1]))
+    return emitOpError(
+        "USubOp requires at least one unknown types as its operands");
+  if (!llvm::isa<pylang::UnknownType>(res_type))
+    return emitOpError("USubOp result type must be unknown, current type is ")
+           << res_type;
+
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// MulOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::MulOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("MulOp supports int and float only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// DivOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::DivOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("DivOp supports int and float only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// ModOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::ModOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("ModOp supports int and float only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// PowOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::PowOp::verify() {
+  operand_type_range types = getOperandTypes();
+  Type res_type = getType();
+  if (types.size() != 2)
+    return emitOpError("incorrect number of operands");
+
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(types[0]) &&
+      !llvm::isa<pylang::IntegerType, pylang::FloatType>(types[1]))
+    return emitOpError(
+        "PowOp requires at least one unknown types as its operands");
+  if (llvm::isa<pylang::IntegerType>(types[0]) &&
+      llvm::isa<pylang::IntegerType>(types[1]) &&
+      !llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("In PowOp, int ** int should return int, current return "
+                       "type is ")
+           << res_type;
+  if (!llvm::isa<pylang::FloatType>(res_type))
+    return emitOpError("PowOp result type must be unknown, current type is ")
+           << res_type;
+
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// LShiftOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::LShiftOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("LShiftOp supports int only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// RShiftOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::RShiftOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("RShiftOp supports int only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// BitOrOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::BitOrOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("BitOr supports int only, current type is ") << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// BitXorOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::BitXorOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("BitXorOp supports int only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// BitAndOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::BitAndOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(res_type))
+    return emitOpError("BitAndOp supports int only, current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// FloorDivOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::FloorDivOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
+    return emitOpError("FloorDivOp supports int and float only, "
+                       "current type is ")
+           << res_type;
+  return success();
 }
