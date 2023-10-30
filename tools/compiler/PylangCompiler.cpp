@@ -67,6 +67,28 @@ PYBIND11_MODULE(PylangCompiler, m) {
            py::arg("loc"), "Create pylang.return")
       .def("createAdd", &Compiler::createAdd, py::arg("lhs"), py::arg("rhs"),
            py::arg("loc"), "Create pylang.add")
+      .def("createSub", &Compiler::createSub, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.sub")
+      .def("createMul", &Compiler::createMul, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.mul")
+      .def("createDiv", &Compiler::createDiv, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.Div")
+      .def("createMod", &Compiler::createMod, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.mod")
+      .def("createPow", &Compiler::createPow, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.pow")
+      .def("createLShift", &Compiler::createLShift, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.lshift")
+      .def("createRShift", &Compiler::createRShift, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.rshift")
+      .def("createBitOr", &Compiler::createBitOr, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.bitor")
+      .def("createBitXor", &Compiler::createBitXor, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.bitxor")
+      .def("createBitAnd", &Compiler::createBitAnd, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.bitand")
+      .def("createFloorDiv", &Compiler::createFloorDiv, py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc"), "Create pylang.floordiv")
       .def("lowerToLLVM", &Compiler::lowerToLLVM, "Lower pylang to llvm")
       .def("dump", &Compiler::dump)
       .def("emitLLVMIR", &Compiler::emitLLVMIR)
@@ -275,23 +297,37 @@ void Compiler::createReturn(std::optional<const unsigned> ssa,
   builder->create<pylang::ReturnOp>(loc_adaptor->getLoc(ctx), it->second);
 }
 
+// binary op type casting function
+void binaryOpTypeCast(OpBuilder *builder, Location loc, Value &lhs, Value &rhs) {
+  MLIRContext *ctx = builder->getContext();
+  Type lhs_t = lhs.getType(), rhs_t = rhs.getType();
+  assert((isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(lhs_t) && isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(rhs_t)));
+
+  if (isa<pylang::FloatType>(lhs_t)) {
+    if (!isa<pylang::FloatType>(rhs_t))
+      rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
+  } else if (isa<pylang::IntegerType>(lhs_t)) {
+    if (isa<pylang::FloatType>(rhs_t)) {
+      lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
+    } else if (isa<pylang::BoolType>(rhs_t)) {
+      rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
+    }
+  } else {
+    if (isa<pylang::BoolType>(rhs_t)) {
+      lhs = builder->create<pylang::CastOp>(
+          loc, pylang::IntegerType::get(ctx, 32), lhs);
+      rhs = builder->create<pylang::CastOp>(
+          loc, pylang::IntegerType::get(ctx, 32), rhs);
+    } else {
+      lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
+    }
+  }
+}
+
 unsigned Compiler::createAdd(unsigned lhs_ssa, unsigned rhs_ssa,
                              LocationAdaptor *loc_adaptor) {
-  auto lhs_it = ssa2value_map.back().find(lhs_ssa);
-  auto rhs_it = ssa2value_map.back().find(rhs_ssa);
-  if (lhs_it == ssa2value_map.back().end()) {
-    emitError(loc_adaptor->getLoc(ctx))
-        << "Cannot find ssa value " << lhs_ssa << "\n";
-    exit(1);
-  }
-  if (rhs_it == ssa2value_map.back().end()) {
-    emitError(loc_adaptor->getLoc(ctx))
-        << "Cannot find ssa value " << rhs_ssa << "\n";
-    exit(1);
-  }
   Location loc = loc_adaptor->getLoc(ctx);
-  Value lhs = lhs_it->second;
-  Value rhs = rhs_it->second;
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
   Type lhs_t = lhs.getType();
   Type rhs_t = rhs.getType();
   // choose add operation due to types
@@ -307,41 +343,138 @@ unsigned Compiler::createAdd(unsigned lhs_ssa, unsigned rhs_ssa,
            isa<pylang::BoolType, pylang::IntegerType, pylang::FloatType>(
                rhs_t)) {
     // cast lhs or rhs to the same type
-    Value casted_lhs, casted_rhs;
-    if (isa<pylang::FloatType>(lhs_t)) {
-      casted_lhs = lhs;
-      if (!isa<pylang::FloatType>(rhs_t))
-        casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
-      else
-        casted_rhs = rhs;
-    } else if (isa<pylang::IntegerType>(lhs_t)) {
-      if (isa<pylang::FloatType>(rhs_t)) {
-        casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
-        casted_rhs = rhs;
-      } else if (isa<pylang::BoolType>(rhs_t)) {
-        casted_lhs = lhs;
-        casted_rhs = builder->create<pylang::CastOp>(loc, lhs_t, rhs);
-      } else {
-        casted_lhs = lhs;
-        casted_rhs = rhs;
-      }
-    } else {
-      if (isa<pylang::BoolType>(rhs_t)) {
-        casted_lhs = builder->create<pylang::CastOp>(
-            loc, pylang::IntegerType::get(ctx, 32), lhs);
-        casted_rhs = builder->create<pylang::CastOp>(
-            loc, pylang::IntegerType::get(ctx, 32), rhs);
-      } else {
-        casted_lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
-        casted_rhs = rhs;
-      }
-    }
-    res = builder->create<pylang::AddOp>(loc, casted_lhs, casted_rhs);
+    binaryOpTypeCast(builder, loc, lhs, rhs);
+    res = builder->create<pylang::AddOp>(loc, lhs, rhs);
   } else {
     emitError(loc) << "Unable to create add: " << lhs_t << " + " << rhs_t
                    << "\n";
     exit(1);
   }
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createSub(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  Value res;
+  // TODO: Add UnknownSub
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::SubOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createMul(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  Value res;
+  // TODO: Add UnknownMul
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::MulOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createDiv(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  Value res;
+  // TODO: Add UnknownDiv
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::DivOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createMod(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  Value res;
+  // TODO: Add UnknownMod
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::ModOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createPow(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  // TODO: Add UnknownPow
+  assert((isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res = builder->create<pylang::PowOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createLShift(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  assert((isa<pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res;
+  // TODO: Add UnknownLShift
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::LShiftOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createRShift(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  assert((isa<pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res;
+  // TODO: Add UnknownRShift
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::RShiftOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createBitOr(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  assert((isa<pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res;
+  // TODO: Add UnknownBitOr
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::BitOrOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createBitXor(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  assert((isa<pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res;
+  // TODO: Add UnknownBitXor
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::BitXorOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createBitAnd(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  assert((isa<pylang::IntegerType, pylang::BoolType>(lhs.getType()) && isa<pylang::IntegerType, pylang::BoolType>(rhs.getType())));
+  Value res;
+  // TODO: Add UnknownBitAnd
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::BitAndOp>(loc, lhs, rhs);
+  return insertSSAValue(res);
+}
+
+unsigned Compiler::createFloorDiv(unsigned lhs_ssa, unsigned rhs_ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+
+  Value res;
+  // TODO: Add UnknownFloorDiv
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  res = builder->create<pylang::FloorDivOp>(loc, lhs, rhs);
   return insertSSAValue(res);
 }
 
@@ -393,4 +526,14 @@ unsigned Compiler::insertSSAValue(Value val) {
   unsigned ssa = ssa_counter.top()++;
   value_map.insert(std::make_pair(ssa, val));
   return ssa;
+}
+
+Value Compiler::getValueBySSA(unsigned ssa, Location loc) {
+  auto it = ssa2value_map.back().find(ssa);
+  if(it == ssa2value_map.back().end()) {
+    emitError(loc)
+        << "Cannot find ssa value " << ssa << "\n";
+    exit(1);
+  }
+  return it->second;
 }

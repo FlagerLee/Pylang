@@ -85,15 +85,10 @@ public:
   //===-------------------------------------------------------------------===//
   // pass manage function
   //===-------------------------------------------------------------------===//
-
   void addPass();
-
   bool lowerToLLVM();
-
   bool emitLLVMIR();
-
   void runJIT();
-
   void dump() { mod.dump(); }
 
 private:
@@ -110,7 +105,11 @@ private:
 
   PassManager *pm;
 
+  //===-------------------------------------------------------------------===//
+  // tool function
+  //===-------------------------------------------------------------------===//
   unsigned insertSSAValue(Value val);
+  Value getValueBySSA(unsigned ssa, Location loc);
 };
 
 class LocationAdaptor {

@@ -317,7 +317,7 @@ def BitOrOp : Pylang_Binary_Same_Type_Op<"BitOr", []> {
 def BitXorOp : Pylang_Binary_Same_Type_Op<"BitXor", []> {
   let summary = "pylang bit xor operation";
   let description = [{
-      Pylang bitor op supports int ^ int.
+      Pylang bitxor op supports int ^ int.
       If bitxors like int ^ bool is required, bool should be casted to int first.
       If an object defines __xor__ method, then it should call __xor__ instead of using BitXorOp
   }];
@@ -326,7 +326,7 @@ def BitXorOp : Pylang_Binary_Same_Type_Op<"BitXor", []> {
 def BitAndOp : Pylang_Binary_Same_Type_Op<"BitAnd", []> {
   let summary = "pylang bit and operation";
   let description = [{
-      Pylang bitor op supports int & int.
+      Pylang bitand op supports int & int.
       If bitands like int & bool is required, bool should be casted to int first.
       If an object defines __and__ method, then it should call __and__ instead of using BitAndOp
   }];
