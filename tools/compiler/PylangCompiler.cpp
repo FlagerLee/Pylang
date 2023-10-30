@@ -417,12 +417,22 @@ unsigned Compiler::createPow(unsigned lhs_ssa, unsigned rhs_ssa,
                              LocationAdaptor *loc_adaptor) {
   Location loc = loc_adaptor->getLoc(ctx);
   Value lhs = getValueBySSA(lhs_ssa, loc), rhs = getValueBySSA(rhs_ssa, loc);
+  Type lhs_t = lhs.getType(), rhs_t = rhs.getType();
 
   // TODO: Add UnknownPow
   assert((isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(
               lhs.getType()) &&
           isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(
               rhs.getType())));
+  if(isa<pylang::FloatType>(rhs_t) && !isa<pylang::FloatType>(lhs_t))
+    lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
+  else {
+    // TODO: optimize. True ** Any = 1 or 1.0. False ** 0 = 1 or 1.0, False ** others = 0 or 0.0
+    if(isa<pylang::BoolType>(lhs_t))
+      lhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), lhs);
+    if(isa<pylang::BoolType>(rhs_t))
+      rhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), rhs);
+  }
   Value res = builder->create<pylang::PowOp>(loc, lhs, rhs);
   return insertSSAValue(res);
 }
@@ -515,7 +525,9 @@ unsigned Compiler::createFloorDiv(unsigned lhs_ssa, unsigned rhs_ssa,
 
 void Compiler::addPass() {
   pm->addPass(pylang::createLowerToLLVMPass());
+  pm->addPass(createConvertMathToFuncs());
   pm->addPass(createConvertFuncToLLVMPass());
+  pm->addPass(createConvertMathToLLVMPass());
 }
 
 bool Compiler::lowerToLLVM() {

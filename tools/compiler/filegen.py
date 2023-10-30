@@ -132,11 +132,11 @@ class PythonVisitor(ast.NodeVisitor):
 def filegenerator(filepath: str):
     visitor = PythonVisitor(filepath)
     visitor.compile()
-    visitor.compiler.dump()
-    #visitor.compiler.lowerToLLVM()
+    #visitor.compiler.dump()
+    visitor.compiler.lowerToLLVM()
     #visitor.compiler.dump()
     #visitor.compiler.emitLLVMIR()
-    #visitor.compiler.runJIT()
+    visitor.compiler.runJIT()
 
 
 if __name__ == '__main__':

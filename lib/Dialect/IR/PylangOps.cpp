@@ -407,6 +407,10 @@ LogicalResult pylang::PowOp::verify() {
     return emitOpError("In PowOp, int ** int should return int, current return "
                        "type is ")
            << res_type;
+  if (llvm::isa<pylang::FloatType>(types[1]) &&
+      !llvm::isa<pylang::FloatType>(types[0]))
+    return emitOpError(
+        "PowOp forbids int ** float. Use float ** float instead");
   if (!llvm::isa<pylang::FloatType>(res_type))
     return emitOpError("PowOp result type must be unknown, current type is ")
            << res_type;
