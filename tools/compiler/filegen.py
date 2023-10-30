@@ -69,16 +69,30 @@ class PythonVisitor(ast.NodeVisitor):
         if isinstance(op, ast.Add):
             return self.compiler.createAdd(lhs, rhs, node_loc)
         elif isinstance(op, ast.Sub):
-            pass
+            return self.compiler.createSub(lhs, rhs, node_loc)
         elif isinstance(op, ast.Mult):
-            pass
-        # TODO: ast.Matmult
+            return self.compiler.createMul(lhs, rhs, node_loc)
+        elif isinstance(op, ast.MatMult):
+            raise RuntimeError('Unsupported operation MatMult')
         elif isinstance(op, ast.Div):
-            pass
+            return self.compiler.createDiv(lhs, rhs, node_loc)
         elif isinstance(op, ast.Mod):
-            pass
+            return self.compiler.createMod(lhs, rhs, node_loc)
         elif isinstance(op, ast.Pow):
-            pass
+            return self.compiler.createPow(lhs, rhs, node_loc)
+        elif isinstance(op, ast.LShift):
+            return self.compiler.createLShift(lhs, rhs, node_loc)
+        elif isinstance(op, ast.RShift):
+            return self.compiler.createRShift(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitOr):
+            return self.compiler.createBitOr(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitXor):
+            return self.compiler.createBitXor(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitAnd):
+            return self.compiler.createBitAnd(lhs, rhs, node_loc)
+        elif isinstance(op, ast.FloorDiv):
+            return self.compiler.createFloorDiv(lhs, rhs, node_loc)
+        raise RuntimeError('Unsupported operation %s' % str(type(op)))
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         pass
@@ -118,11 +132,11 @@ class PythonVisitor(ast.NodeVisitor):
 def filegenerator(filepath: str):
     visitor = PythonVisitor(filepath)
     visitor.compile()
-    #visitor.compiler.dump()
-    visitor.compiler.lowerToLLVM()
+    visitor.compiler.dump()
+    #visitor.compiler.lowerToLLVM()
     #visitor.compiler.dump()
     #visitor.compiler.emitLLVMIR()
-    visitor.compiler.runJIT()
+    #visitor.compiler.runJIT()
 
 
 if __name__ == '__main__':
