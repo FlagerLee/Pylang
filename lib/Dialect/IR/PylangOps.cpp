@@ -369,8 +369,8 @@ LogicalResult pylang::MulOp::verify() {
 
 LogicalResult pylang::DivOp::verify() {
   Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("DivOp supports int and float only, current type is ")
+  if (!llvm::isa<pylang::FloatType>(res_type))
+    return emitOpError("DivOp supports float only, current type is ")
            << res_type;
   return success();
 }
