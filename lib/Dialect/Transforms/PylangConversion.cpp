@@ -552,13 +552,22 @@ struct ModOpLowering : public OpConversionPattern<pylang::ModOp> {
                   ConversionPatternRewriter &rewriter) const final {
     auto loc = op->getLoc();
 
+    // a % b equals (a mod b + b) mod b
     Value res;
-    if (isa<pylang::IntegerType>(op.getResult().getType()))
-      res = rewriter.create<arith::RemSIOp>(loc, adaptor.getLhs(),
-                                           adaptor.getRhs());
-    else
-      res = rewriter.create<arith::RemFOp>(loc, adaptor.getLhs(),
-                                           adaptor.getRhs());
+    if (isa<pylang::IntegerType>(op.getResult().getType())) {
+      Value mod = rewriter.create<arith::RemSIOp>(loc, adaptor.getLhs(),
+                                                  adaptor.getRhs());
+      Value add = rewriter.create<arith::AddIOp>(loc, mod, adaptor.getRhs());
+      res = rewriter.create<arith::RemSIOp>(loc, add,
+                                            adaptor.getRhs());
+    }
+    else {
+      Value mod = rewriter.create<arith::RemFOp>(loc, adaptor.getLhs(),
+                                                  adaptor.getRhs());
+      Value add = rewriter.create<arith::AddFOp>(loc, mod, adaptor.getRhs());
+      res = rewriter.create<arith::RemFOp>(loc, add,
+                                            adaptor.getRhs());
+    }
     rewriter.replaceOp(op, res);
     return success();
   }
@@ -705,6 +714,7 @@ populateLowerPylangConversionPatterns(RewritePatternSet &patterns,
   patterns.add<CallOpLowering>(patterns.getContext(), converter);
   patterns.add<ReturnOpLowering>(patterns.getContext());
   patterns.add<CastOpLowering>(patterns.getContext(), converter);
+  // lower binary op
   patterns.add<AddOpLowering>(patterns.getContext());
   patterns.add<SubOpLowering>(patterns.getContext());
   patterns.add<MulOpLowering>(patterns.getContext());
