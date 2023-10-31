@@ -32,6 +32,16 @@ class PythonVisitor(ast.NodeVisitor):
         with open(self.fp, "r") as f:
             self.visit(ast.parse(f.read()))
 
+    def visit_Tuple(self, node: ast.Tuple) -> Any:
+        node_loc = FileLineColLocAdaptor(self.fp, node.lineno, node.col_offset)
+        ssa_operands = []
+        for elt in node.elts:
+            ssa_operands.append(self.visit(elt))
+        return self.compiler.createTuple(ssa_operands, node_loc)
+
+    def visit_List(self, node: ast.List) -> Any:
+        pass
+
     def visit_Assign(self, node: ast.Assign) -> Any:
         ssa = self.visit(node.value)
         for target in node.targets:
@@ -52,7 +62,37 @@ class PythonVisitor(ast.NodeVisitor):
         pass
 
     def visit_BinOp(self, node: ast.BinOp) -> Any:
-        pass
+        node_loc = FileLineColLocAdaptor(self.fp, node.lineno, node.col_offset)
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.right)
+        op = node.op
+        if isinstance(op, ast.Add):
+            return self.compiler.createAdd(lhs, rhs, node_loc)
+        elif isinstance(op, ast.Sub):
+            return self.compiler.createSub(lhs, rhs, node_loc)
+        elif isinstance(op, ast.Mult):
+            return self.compiler.createMul(lhs, rhs, node_loc)
+        elif isinstance(op, ast.MatMult):
+            raise RuntimeError('Unsupported operation MatMult')
+        elif isinstance(op, ast.Div):
+            return self.compiler.createDiv(lhs, rhs, node_loc)
+        elif isinstance(op, ast.Mod):
+            return self.compiler.createMod(lhs, rhs, node_loc)
+        elif isinstance(op, ast.Pow):
+            return self.compiler.createPow(lhs, rhs, node_loc)
+        elif isinstance(op, ast.LShift):
+            return self.compiler.createLShift(lhs, rhs, node_loc)
+        elif isinstance(op, ast.RShift):
+            return self.compiler.createRShift(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitOr):
+            return self.compiler.createBitOr(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitXor):
+            return self.compiler.createBitXor(lhs, rhs, node_loc)
+        elif isinstance(op, ast.BitAnd):
+            return self.compiler.createBitAnd(lhs, rhs, node_loc)
+        elif isinstance(op, ast.FloorDiv):
+            return self.compiler.createFloorDiv(lhs, rhs, node_loc)
+        raise RuntimeError('Unsupported operation %s' % str(type(op)))
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         pass

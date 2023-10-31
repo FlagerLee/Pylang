@@ -22,6 +22,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -374,17 +375,332 @@ struct CallOpLowering : public OpConversionPattern<pylang::CallOp> {
 struct ReturnOpLowering : public OpConversionPattern<pylang::ReturnOp> {
   using OpConversionPattern<pylang::ReturnOp>::OpConversionPattern;
 
-  explicit ReturnOpLowering(MLIRContext *context, TypeConverter &converter)
-      : OpConversionPattern(converter, context) {}
+  explicit ReturnOpLowering(MLIRContext *context)
+      : OpConversionPattern(context) {}
 
   LogicalResult
   matchAndRewrite(pylang::ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     auto loc = op->getLoc();
 
-    auto ret = rewriter.create<LLVM::ReturnOp>(loc, op->getOperands());
+    auto ret = rewriter.create<LLVM::ReturnOp>(loc, adaptor.getOperands());
 
     rewriter.replaceOp(op, ret);
+    return success();
+  }
+};
+
+struct CastOpLowering : public OpConversionPattern<pylang::CastOp> {
+  using OpConversionPattern<pylang::CastOp>::OpConversionPattern;
+
+  explicit CastOpLowering(MLIRContext *context, TypeConverter &converter)
+      : OpConversionPattern<pylang::CastOp>(converter, context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::CastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+    const auto &converter = *getTypeConverter<PylangTypeConverter>();
+
+    Type from_ty = op.getValue().getType(), to_ty = op.getResult().getType();
+    Value input = adaptor.getValue();
+    Value res = input;
+    // float -> *
+    if (isa<pylang::FloatType>(from_ty)) {
+      // float -> int
+      if (isa<pylang::IntegerType>(to_ty)) {
+        res = rewriter.create<arith::FPToSIOp>(
+            loc, converter.convertType(to_ty), input);
+      }
+      // float -> bool
+      else if (isa<pylang::BoolType>(to_ty)) {
+        Value fzero = rewriter.create<arith::ConstantOp>(
+            loc, FloatAttr::get(converter.convertType(from_ty), 0.0));
+        res = rewriter.create<arith::CmpFOp>(loc, converter.convertType(to_ty),
+                                             arith::CmpFPredicate::ONE, input,
+                                             fzero);
+      }
+    }
+    // int -> *
+    else if (isa<pylang::IntegerType>(from_ty)) {
+      // int -> float
+      if (isa<pylang::FloatType>(to_ty)) {
+        res = rewriter.create<arith::SIToFPOp>(
+            loc, converter.convertType(to_ty), input);
+      }
+      // int -> bool
+      else if (isa<pylang::BoolType>(to_ty)) {
+        Value zero = rewriter.create<arith::ConstantOp>(
+            loc, IntegerAttr::get(converter.convertType(from_ty), 0));
+        res = rewriter.create<arith::CmpIOp>(loc, converter.convertType(to_ty),
+                                             arith::CmpIPredicate::ne, input,
+                                             zero);
+      }
+    }
+    // bool -> *
+    else if (isa<pylang::BoolType>(from_ty)) {
+      // bool -> float
+      if (isa<pylang::FloatType>(to_ty)) {
+        res = rewriter.create<arith::UIToFPOp>(
+            loc, converter.convertType(to_ty), input);
+      }
+      // bool -> int
+      else if (isa<pylang::IntegerType>(to_ty)) {
+        res = rewriter.create<arith::ExtUIOp>(loc, converter.convertType(to_ty),
+                                              input);
+      }
+    }
+    if (res == input)
+      return emitError(loc)
+             << "Unsupported type cast: from " << from_ty << " to " << to_ty;
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct AddOpLowering : public OpConversionPattern<pylang::AddOp> {
+  using OpConversionPattern<pylang::AddOp>::OpConversionPattern;
+
+  explicit AddOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::AddOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if (isa<pylang::IntegerType>(op.getResult().getType()))
+      res = rewriter.create<arith::AddIOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    else
+      res = rewriter.create<arith::AddFOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct SubOpLowering : public OpConversionPattern<pylang::SubOp> {
+  using OpConversionPattern<pylang::SubOp>::OpConversionPattern;
+
+  explicit SubOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::SubOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if (isa<pylang::IntegerType>(op.getResult().getType()))
+      res = rewriter.create<arith::SubIOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    else
+      res = rewriter.create<arith::SubFOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct MulOpLowering : public OpConversionPattern<pylang::MulOp> {
+  using OpConversionPattern<pylang::MulOp>::OpConversionPattern;
+
+  explicit MulOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::MulOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if (isa<pylang::IntegerType>(op.getResult().getType()))
+      res = rewriter.create<arith::MulIOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    else
+      res = rewriter.create<arith::MulFOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct DivOpLowering : public OpConversionPattern<pylang::DivOp> {
+  using OpConversionPattern<pylang::DivOp>::OpConversionPattern;
+
+  explicit DivOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::DivOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res =
+        rewriter.create<arith::DivFOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct ModOpLowering : public OpConversionPattern<pylang::ModOp> {
+  using OpConversionPattern<pylang::ModOp>::OpConversionPattern;
+
+  explicit ModOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::ModOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    // a % b equals (a mod b + b) mod b
+    Value res;
+    if (isa<pylang::IntegerType>(op.getResult().getType())) {
+      Value mod = rewriter.create<arith::RemSIOp>(loc, adaptor.getLhs(),
+                                                  adaptor.getRhs());
+      Value add = rewriter.create<arith::AddIOp>(loc, mod, adaptor.getRhs());
+      res = rewriter.create<arith::RemSIOp>(loc, add,
+                                            adaptor.getRhs());
+    }
+    else {
+      Value mod = rewriter.create<arith::RemFOp>(loc, adaptor.getLhs(),
+                                                  adaptor.getRhs());
+      Value add = rewriter.create<arith::AddFOp>(loc, mod, adaptor.getRhs());
+      res = rewriter.create<arith::RemFOp>(loc, add,
+                                            adaptor.getRhs());
+    }
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct PowOpLowering : public OpConversionPattern<pylang::PowOp> {
+  using OpConversionPattern<pylang::PowOp>::OpConversionPattern;
+
+  explicit PowOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::PowOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if (isa<pylang::FloatType>(op.getRhs().getType()))
+      res = rewriter.create<math::PowFOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    else if (isa<pylang::IntegerType>(op.getLhs().getType()))
+      res = rewriter.create<math::IPowIOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    else
+      res = rewriter.create<math::FPowIOp>(loc, adaptor.getLhs(),
+                                           adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct LShiftOpLowering : public OpConversionPattern<pylang::LShiftOp> {
+  using OpConversionPattern<pylang::LShiftOp>::OpConversionPattern;
+
+  explicit LShiftOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::LShiftOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res = rewriter.create<arith::ShLIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct RShiftOpLowering : public OpConversionPattern<pylang::RShiftOp> {
+  using OpConversionPattern<pylang::RShiftOp>::OpConversionPattern;
+
+  explicit RShiftOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::RShiftOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res = rewriter.create<arith::ShRSIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct BitOrOpLowering : public OpConversionPattern<pylang::BitOrOp> {
+  using OpConversionPattern<pylang::BitOrOp>::OpConversionPattern;
+
+  explicit BitOrOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::BitOrOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res = rewriter.create<arith::OrIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct BitXorOpLowering : public OpConversionPattern<pylang::BitXorOp> {
+  using OpConversionPattern<pylang::BitXorOp>::OpConversionPattern;
+
+  explicit BitXorOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::BitXorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res = rewriter.create<arith::XOrIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct BitAndOpLowering : public OpConversionPattern<pylang::BitAndOp> {
+  using OpConversionPattern<pylang::BitAndOp>::OpConversionPattern;
+
+  explicit BitAndOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::BitAndOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res = rewriter.create<arith::AndIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+
+struct FloorDivOpLowering : public OpConversionPattern<pylang::FloorDivOp> {
+  using OpConversionPattern<pylang::FloorDivOp>::OpConversionPattern;
+
+  explicit FloorDivOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::FloorDivOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    // a // b equals to (a - a mod b) / b
+    Value res;
+    if (isa<pylang::FloatType>(op.getRhs().getType())) {
+      Value rem = rewriter.create<arith::RemFOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+      Value sub = rewriter.create<arith::SubFOp>(loc, adaptor.getLhs(), rem);
+      res = rewriter.create<arith::DivFOp>(loc, sub, adaptor.getRhs());
+    }
+    else {
+      Value rem = rewriter.create<arith::RemSIOp>(loc, adaptor.getLhs(), adaptor.getRhs());
+      Value sub = rewriter.create<arith::SubIOp>(loc, adaptor.getLhs(), rem);
+      res = rewriter.create<arith::DivSIOp>(loc, sub, adaptor.getRhs());
+    }
+
+    rewriter.replaceOp(op, res);
     return success();
   }
 };
@@ -396,7 +712,21 @@ populateLowerPylangConversionPatterns(RewritePatternSet &patterns,
   patterns.add<ConstantOpLowering>(patterns.getContext(), converter);
   patterns.add<FuncOpLowering>(patterns.getContext(), converter);
   patterns.add<CallOpLowering>(patterns.getContext(), converter);
-  patterns.add<ReturnOpLowering>(patterns.getContext(), converter);
+  patterns.add<ReturnOpLowering>(patterns.getContext());
+  patterns.add<CastOpLowering>(patterns.getContext(), converter);
+  // lower binary op
+  patterns.add<AddOpLowering>(patterns.getContext());
+  patterns.add<SubOpLowering>(patterns.getContext());
+  patterns.add<MulOpLowering>(patterns.getContext());
+  patterns.add<DivOpLowering>(patterns.getContext());
+  patterns.add<ModOpLowering>(patterns.getContext());
+  patterns.add<PowOpLowering>(patterns.getContext());
+  patterns.add<LShiftOpLowering>(patterns.getContext());
+  patterns.add<RShiftOpLowering>(patterns.getContext());
+  patterns.add<BitOrOpLowering>(patterns.getContext());
+  patterns.add<BitXorOpLowering>(patterns.getContext());
+  patterns.add<BitAndOpLowering>(patterns.getContext());
+  patterns.add<FloorDivOpLowering>(patterns.getContext());
 }
 
 namespace {
@@ -418,7 +748,7 @@ public:
     ModuleOp module = getOperation();
     ConversionTarget target(*context);
     target.addLegalDialect<arith::ArithDialect, func::FuncDialect,
-                           memref::MemRefDialect, LLVM::LLVMDialect>();
+                           memref::MemRefDialect, LLVM::LLVMDialect, math::MathDialect>();
     target.addIllegalDialect<pylang::PylangDialect>();
 
     RewritePatternSet patterns(context);
@@ -432,7 +762,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<pylang::PylangDialect, arith::ArithDialect, func::FuncDialect,
-                memref::MemRefDialect, LLVM::LLVMDialect>();
+                memref::MemRefDialect, LLVM::LLVMDialect, math::MathDialect>();
   }
 };
 } // namespace

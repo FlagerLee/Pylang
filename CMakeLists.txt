@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.11)
 # Project setup and globals
 #-------------------------------------------------------------------------------
 
-project(pylang VERSION 0.0.1)
+project(pylang VERSION 0.0.2)
 
 if (POLICY CMP0077)
     cmake_policy(SET CMP0077 NEW)
@@ -74,7 +74,7 @@ add_subdirectory(third-party/pybind11)
 #-------------------------------------------------------------------------------
 
 include(MLIRDetectPythonEnv)
-mlir_configure_python_dev_packages()
+find_package (Python3 3.10 EXACT COMPONENTS Interpreter)
 
 set(PYLANG_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
 set(MLIR_ENABLE_BINDINGS_PYTHON=ON)
