@@ -15,6 +15,7 @@
 #ifndef PYLANG_BASE
 #define PYLANG_BASE
 
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
 def Pylang_Dialect : Dialect {
@@ -31,6 +32,20 @@ def Pylang_Dialect : Dialect {
 
     public:
     }];
+}
+
+def Pylang_CmpPredicate : I64EnumAttr<
+    "CmpPredicate", "",
+    [
+        I64EnumAttrCase<"EQ", 0>,
+        I64EnumAttrCase<"NEQ", 1>,
+        I64EnumAttrCase<"LT", 2>,
+        I64EnumAttrCase<"LTE", 3>,
+        I64EnumAttrCase<"GT", 4>,
+        I64EnumAttrCase<"GTE", 5>
+    ]
+> {
+    let cppNamespace = "::mlir::pylang";
 }
 
 #endif // PYLANG_BASE

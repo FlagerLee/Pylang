@@ -15,8 +15,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#include "pylang/IR/PylangDialect.h"
-#include "pylang/IR/PylangTypes.h"
+#include "pylang/IR/Pylang.h"
 #define GET_TYPEDEF_CLASSES
 #include "pylang/IR/PylangTypes.cpp.inc"
 

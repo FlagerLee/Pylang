@@ -12,19 +12,12 @@
  * limitations under the License.
  */
 
-#include "pylang/IR/Pylang.h"
-#include "mlir/IR/OpImplementation.h"
+#ifndef PYLANG_H
+#define PYLANG_H
 
-using namespace mlir;
-using namespace mlir::pylang;
+#include "PylangAttributes.h"
+#include "PylangDialect.h"
+#include "PylangOps.h"
+#include "PylangTypes.h"
 
-#include "pylang/IR/PylangDialect.cpp.inc"
-
-void PylangDialect::initialize() {
-  registerTypes();
-  registerAttributes();
-  addOperations<
-#define GET_OP_LIST
-#include "pylang/IR/PylangOps.cpp.inc"
-      >();
-}
+#endif // PYLANG_H

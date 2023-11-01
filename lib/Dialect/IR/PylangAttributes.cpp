@@ -12,8 +12,7 @@
  * limitations under the License.
  */
 
-#include "pylang/IR/PylangDialect.h"
-#include "pylang/IR/PylangAttributes.h"
+#include "pylang/IR/Pylang.h"
 
 #define GET_ATTRDEF_CLASSES
 #include "pylang/IR/PylangAttributes.cpp.inc"

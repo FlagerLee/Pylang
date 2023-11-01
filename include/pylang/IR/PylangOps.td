@@ -47,6 +47,14 @@ class Pylang_Binary_Different_Type_Op<string mnemonic, list<Trait> traits = []> 
       let assemblyFormat = "$lhs `,` $rhs attr-dict `:` `(` type($lhs) `,` type($rhs) `)` `->` type($result)";
     }
 
+class Pylang_Unary_Op<string mnemonic, list<Trait> traits = []> :
+    Pylang_Op<mnemonic, traits # [SameOperandsAndResultType]> {
+      let arguments = (ins AnyType:$input);
+      let results = (outs AnyType:$result);
+      let assemblyFormat = "$input attr-dict `:` type($result)";
+      let hasVerifier = 1;
+    }
+
 //===----------------------------------------------------------------------===//
 // Pylang Operations
 //===----------------------------------------------------------------------===//
@@ -171,9 +179,8 @@ def ReturnOp : Pylang_Op<"Return", [Pure, HasParent<"FuncOp">, Terminator]> {
 // Capture value from outer region(function)
 //===----------------------------------------------------------------------===//
 
-//===----------------------------------------------------------------------===//
-// Unary Operations
-//===----------------------------------------------------------------------===//
+
+
 
 //===----------------------------------------------------------------------===//
 //
@@ -202,7 +209,7 @@ def ConcatOp : Pylang_Binary_Same_Type_Op<"Concat", []> {
   }];
 }
 
-def UnknownAddOp : Pylang_Binary_Different_Type_Op<"UAdd", []> {
+def UnknownAddOp : Pylang_Binary_Different_Type_Op<"UnknownAdd", []> {
   let summary = "pylang add unknown type operation";
   let description = [{
     Pylang unknown add op is used when the type of at least one of the
@@ -225,7 +232,7 @@ def SubOp : Pylang_Binary_Same_Type_Op<"Sub", []> {
   }];
 }
 
-def UnknownSubOp : Pylang_Binary_Different_Type_Op<"USub", []> {
+def UnknownSubOp : Pylang_Binary_Different_Type_Op<"UnknownSub", []> {
   let summary = "pylang subtraction unknown type operation";
   let description = [{
     Pylang unknown sub op is used when the type of at least one of the
@@ -339,6 +346,70 @@ def FloorDivOp : Pylang_Binary_Same_Type_Op<"FloorDiv", []> {
       If floor divs like float // int is required, int should be casted to float first.
       If ? // bool is required, bool should be casted to int or float.
       If an object defines __floordiv__ method, then it should call __floordiv__ instead of using FloorDivOp
+  }];
+}
+
+def AndOp : Pylang_Binary_Same_Type_Op<"And", []> {
+  let summary = "pylang and operation";
+  let description = [{
+      Pylang and op supports int && int, float && float, bool && bool.
+      If an object defines __and__ method, then it should call __and__ instead of using AndOp.
+  }];
+}
+
+def OrOp : Pylang_Binary_Same_Type_Op<"Or", []> {
+  let summary = "pylang or operation";
+  let description = [{
+      Pylang or op supports int || int, float || float, bool || bool.
+      If an object defines __or__ method, then it should call __or__ instead of using AndOp.
+  }];
+}
+
+def CmpOp : Pylang_Binary_Different_Type_Op<"Cmp", []> {
+  let summary = "pylang cmp operation";
+  let description = [{
+      Pylang and op supports int (cmp) int, float (cmp) float.
+      If an object defines __(cmp)__ method, then it should call __(cmp)__ instead of using AndOp.
+  }];
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
+      build($_builder, $_state, pylang::BoolType::get($_builder.getContext()), lhs, rhs);
+    }]>
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+//
+//                           Unary Operations
+//
+//===----------------------------------------------------------------------===//
+
+def InvertOp : Pylang_Unary_Op<"Invert", []> {
+  let summary = "pylang invert operation";
+  let description = [{
+    Pylang invert op supports ~int.
+  }];
+}
+
+def NotOp : Pylang_Unary_Op<"Not", []> {
+  let summary = "pylang not operation";
+  let description = [{
+    Pylang not op supports not bool/float/int, and returns bool.
+  }];
+}
+
+def UAddOp : Pylang_Unary_Op<"UAdd", []> {
+  let summary = "pylang uadd operation";
+  let description = [{
+    Pylang uadd op supports +int, +float.
+    [[Maybe useless]]
+  }];
+}
+
+def USubOp : Pylang_Unary_Op<"USub", []> {
+  let summary = "pylang usub operation";
+  let description = [{
+    Pylang usub op supports -int, -float.
   }];
 }
 

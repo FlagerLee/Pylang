@@ -17,7 +17,7 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "pylang/IR/PylangDialect.h"
+#include "pylang/IR/Pylang.h"
 
 namespace mlir::pylang {
 LogicalResult createPylangBuiltinFunctionSymbolRef(PatternRewriter &, ModuleOp,

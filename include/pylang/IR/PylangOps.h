@@ -16,6 +16,7 @@
 #define PYLANG_PYLANGOPS_H
 
 #include "PylangAttributes.h"
+#include "PylangDialect.h"
 #include "PylangTypes.h"
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"

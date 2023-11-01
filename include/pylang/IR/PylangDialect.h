@@ -23,4 +23,10 @@
 
 #include "pylang/IR/PylangDialect.h.inc"
 
+//===----------------------------------------------------------------------===//
+// Enums
+//===----------------------------------------------------------------------===//
+
+#include "pylang/IR/PylangEnums.h.inc"
+
 #endif // PYLANG_PYLANGDIALECT_H

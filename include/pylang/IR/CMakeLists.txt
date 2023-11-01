@@ -5,6 +5,8 @@ mlir_tablegen(PylangAttributes.cpp.inc -gen-attrdef-defs)
 set(LLVM_TARGET_DEFINITIONS PylangDialect.td)
 mlir_tablegen(PylangDialect.h.inc -gen-dialect-decls)
 mlir_tablegen(PylangDialect.cpp.inc -gen-dialect-defs)
+mlir_tablegen(PylangEnums.h.inc -gen-enum-decls)
+mlir_tablegen(PylangEnums.cpp.inc -gen-enum-defs)
 
 set(LLVM_TARGET_DEFINITIONS PylangOps.td)
 mlir_tablegen(PylangOps.h.inc -gen-op-decls)

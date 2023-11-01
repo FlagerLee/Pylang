@@ -15,9 +15,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
 
-#include "pylang/IR/PylangDialect.h"
-#include "pylang/IR/PylangOps.h"
-#include "pylang/IR/PylangTypes.h"
+#include "pylang/IR/Pylang.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -27,6 +25,7 @@
 
 #define GET_OP_CLASSES
 #include "pylang/IR/PylangOps.cpp.inc"
+#include "pylang/IR/PylangEnums.cpp.inc"
 
 using namespace mlir;
 
@@ -485,6 +484,117 @@ LogicalResult pylang::FloorDivOp::verify() {
   Type res_type = getResult().getType();
   if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
     return emitOpError("FloorDivOp supports int and float only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// AndOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::AndOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
+          res_type))
+    return emitOpError("AndOp supports int, float and bool only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// OrOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::OrOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
+          res_type))
+    return emitOpError("OrOp supports int, float and bool only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// CmpOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::CmpOp::verify() {
+  operand_type_range types = getOperandTypes();
+  Type res_type = getType();
+  if (types.size() != 2)
+    return emitOpError("incorrect number of operands");
+
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
+          types[0]) &&
+      !llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
+          types[1]))
+    return emitOpError(
+        "CmpOp requires at least one unknown types as its operands");
+  if (types[0] != types[1])
+    return emitOpError() << "CmpOp requires same input types. lhs type is "
+                         << types[0] << ", while rhs type is " << types[1];
+
+  if (!llvm::isa<pylang::BoolType>(res_type))
+    return emitOpError("CmpOp result type must be bool, current type is ")
+           << res_type;
+
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// InvertOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::InvertOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType>(
+          res_type))
+    return emitOpError("InvertOp supports int only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// NotOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::NotOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::BoolType, pylang::FloatType>(
+          res_type))
+    return emitOpError("NotOp supports int, float and bool only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// UAddOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::UAddOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(
+          res_type))
+    return emitOpError("UAddOp supports int and float only, "
+                       "current type is ")
+           << res_type;
+  return success();
+}
+
+//===-------------------------------------------------------------------===//
+// USubOp
+//===-------------------------------------------------------------------===//
+
+LogicalResult pylang::USubOp::verify() {
+  Type res_type = getResult().getType();
+  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(
+          res_type))
+    return emitOpError("USubOp supports int and float only, "
                        "current type is ")
            << res_type;
   return success();
