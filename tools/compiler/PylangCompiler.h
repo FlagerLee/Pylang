@@ -31,6 +31,8 @@
 
 #include "llvm/IR/Module.h"
 
+#include "pylang/IR/Pylang.h"
+
 using std::string;
 using namespace mlir;
 
@@ -79,6 +81,14 @@ public:
   unsigned createBitXor(unsigned, unsigned, LocationAdaptor *);
   unsigned createBitAnd(unsigned, unsigned, LocationAdaptor *);
   unsigned createFloorDiv(unsigned, unsigned, LocationAdaptor *);
+  unsigned createAnd(std::vector<unsigned>, LocationAdaptor *);
+  unsigned createOr(std::vector<unsigned>, LocationAdaptor *);
+  unsigned createCmp(std::vector<unsigned>, std::vector<mlir::pylang::CmpPredicate>, LocationAdaptor *);
+  unsigned createInvert(unsigned, LocationAdaptor *);
+  unsigned createNot(unsigned, LocationAdaptor *);
+  unsigned createUAdd(unsigned, LocationAdaptor *);
+  unsigned createUSub(unsigned, LocationAdaptor *);
+
 
   void createReturn(std::optional<const unsigned>, LocationAdaptor *);
 

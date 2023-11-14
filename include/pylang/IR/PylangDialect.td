@@ -34,7 +34,7 @@ def Pylang_Dialect : Dialect {
     }];
 }
 
-def Pylang_CmpPredicate : I64EnumAttr<
+def Pylang_CmpPredicateAttr : I64EnumAttr<
     "CmpPredicate", "",
     [
         I64EnumAttrCase<"EQ", 0>,

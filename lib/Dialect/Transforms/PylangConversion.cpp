@@ -704,6 +704,71 @@ struct FloorDivOpLowering : public OpConversionPattern<pylang::FloorDivOp> {
     return success();
   }
 };
+
+struct CmpOpLowering : public OpConversionPattern<pylang::CmpOp> {
+  using OpConversionPattern<pylang::CmpOp>::OpConversionPattern;
+
+  explicit CmpOpLowering(MLIRContext *context) : OpConversionPattern(context) {}
+
+  LogicalResult
+  matchAndRewrite(pylang::CmpOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+
+    Value res;
+    if(isa<pylang::IntegerType>(op.getLhs().getType())) {
+      arith::CmpIPredicate predicate;
+      switch (op.getPredicate()) {
+      case pylang::CmpPredicate::EQ:
+        predicate = arith::CmpIPredicate::eq;
+        break;
+      case pylang::CmpPredicate::NEQ:
+        predicate = arith::CmpIPredicate::ne;
+        break;
+      case pylang::CmpPredicate::LT:
+        predicate = arith::CmpIPredicate::slt;
+        break;
+      case pylang::CmpPredicate::LTE:
+        predicate = arith::CmpIPredicate::sle;
+        break;
+      case pylang::CmpPredicate::GT:
+        predicate = arith::CmpIPredicate::sgt;
+        break;
+      case pylang::CmpPredicate::GTE:
+        predicate = arith::CmpIPredicate::sge;
+        break;
+      }
+      res = rewriter.create<arith::CmpIOp>(loc, predicate, adaptor.getLhs(), adaptor.getRhs());
+    }
+    else {
+      arith::CmpFPredicate predicate;
+      switch (op.getPredicate()) {
+      case pylang::CmpPredicate::EQ:
+        predicate = arith::CmpFPredicate::OEQ;
+        break;
+      case pylang::CmpPredicate::NEQ:
+        predicate = arith::CmpFPredicate::ONE;
+        break;
+      case pylang::CmpPredicate::LT:
+        predicate = arith::CmpFPredicate::OLT;
+        break;
+      case pylang::CmpPredicate::LTE:
+        predicate = arith::CmpFPredicate::OLE;
+        break;
+      case pylang::CmpPredicate::GT:
+        predicate = arith::CmpFPredicate::OGT;
+        break;
+      case pylang::CmpPredicate::GTE:
+        predicate = arith::CmpFPredicate::OGE;
+        break;
+      }
+      res = rewriter.create<arith::CmpFOp>(loc, predicate, adaptor.getLhs(), adaptor.getRhs());
+    }
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
 } // namespace
 
 static void
@@ -727,6 +792,7 @@ populateLowerPylangConversionPatterns(RewritePatternSet &patterns,
   patterns.add<BitXorOpLowering>(patterns.getContext());
   patterns.add<BitAndOpLowering>(patterns.getContext());
   patterns.add<FloorDivOpLowering>(patterns.getContext());
+  patterns.add<CmpOpLowering>(patterns.getContext());
 }
 
 namespace {

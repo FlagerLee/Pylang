@@ -23,11 +23,20 @@
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 
-#define GET_OP_CLASSES
-#include "pylang/IR/PylangOps.cpp.inc"
-#include "pylang/IR/PylangEnums.cpp.inc"
-
 using namespace mlir;
+
+// tool functions
+LogicalResult verifySameTypeOperands(Operation *op) {
+  auto types = op->getOperandTypes();
+  assert(types.size() > 0 && "Number of types should greater than 0");
+  if (types.size() == 1)
+    return success();
+  Type ty = types[0];
+  for (auto type : types)
+    if (ty != type)
+      return failure();
+  return success();
+}
 
 //===-------------------------------------------------------------------===//
 // ConstantOp
@@ -274,13 +283,7 @@ LogicalResult pylang::ReturnOp::verify() {
 // AddOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::AddOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("AddOp supports int and float only, current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::AddOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // ConcatOp
@@ -321,13 +324,7 @@ LogicalResult pylang::UnknownAddOp::verify() {
 // SubOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::SubOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("SubOp supports int and float only, current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::SubOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // UnknownSubOp
@@ -354,37 +351,19 @@ LogicalResult pylang::UnknownSubOp::verify() {
 // MulOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::MulOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("MulOp supports int and float only, current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::MulOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // DivOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::DivOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::FloatType>(res_type))
-    return emitOpError("DivOp supports float only, current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::DivOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // ModOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::ModOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("ModOp supports int and float only, current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::ModOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // PowOp
@@ -393,13 +372,7 @@ LogicalResult pylang::ModOp::verify() {
 LogicalResult pylang::PowOp::verify() {
   operand_type_range types = getOperandTypes();
   Type res_type = getType();
-  if (types.size() != 2)
-    return emitOpError("incorrect number of operands");
 
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(types[0]) &&
-      !llvm::isa<pylang::IntegerType, pylang::FloatType>(types[1]))
-    return emitOpError(
-        "PowOp requires at least one unknown types as its operands");
   if (llvm::isa<pylang::IntegerType>(types[0]) &&
       llvm::isa<pylang::IntegerType>(types[1]) &&
       !llvm::isa<pylang::IntegerType>(res_type))
@@ -422,11 +395,7 @@ LogicalResult pylang::PowOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::LShiftOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(res_type))
-    return emitOpError("LShiftOp supports int only, current type is ")
-           << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
@@ -434,11 +403,7 @@ LogicalResult pylang::LShiftOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::RShiftOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(res_type))
-    return emitOpError("RShiftOp supports int only, current type is ")
-           << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
@@ -446,10 +411,7 @@ LogicalResult pylang::RShiftOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::BitOrOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(res_type))
-    return emitOpError("BitOr supports int only, current type is ") << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
@@ -457,11 +419,7 @@ LogicalResult pylang::BitOrOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::BitXorOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(res_type))
-    return emitOpError("BitXorOp supports int only, current type is ")
-           << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
@@ -469,11 +427,7 @@ LogicalResult pylang::BitXorOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::BitAndOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(res_type))
-    return emitOpError("BitAndOp supports int only, current type is ")
-           << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
@@ -481,121 +435,38 @@ LogicalResult pylang::BitAndOp::verify() {
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::FloorDivOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(res_type))
-    return emitOpError("FloorDivOp supports int and float only, "
-                       "current type is ")
-           << res_type;
-  return success();
+  return verifySameTypeOperands(*this);
 }
 
 //===-------------------------------------------------------------------===//
 // AndOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::AndOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
-          res_type))
-    return emitOpError("AndOp supports int, float and bool only, "
-                       "current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::AndOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // OrOp
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::OrOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
-          res_type))
-    return emitOpError("OrOp supports int, float and bool only, "
-                       "current type is ")
-           << res_type;
-  return success();
-}
+LogicalResult pylang::OrOp::verify() { return verifySameTypeOperands(*this); }
 
 //===-------------------------------------------------------------------===//
 // CmpOp
 //===-------------------------------------------------------------------===//
 
 LogicalResult pylang::CmpOp::verify() {
-  operand_type_range types = getOperandTypes();
-  Type res_type = getType();
-  if (types.size() != 2)
-    return emitOpError("incorrect number of operands");
-
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
-          types[0]) &&
-      !llvm::isa<pylang::IntegerType, pylang::FloatType, pylang::BoolType>(
-          types[1]))
-    return emitOpError(
-        "CmpOp requires at least one unknown types as its operands");
-  if (types[0] != types[1])
-    return emitOpError() << "CmpOp requires same input types. lhs type is "
-                         << types[0] << ", while rhs type is " << types[1];
-
-  if (!llvm::isa<pylang::BoolType>(res_type))
-    return emitOpError("CmpOp result type must be bool, current type is ")
-           << res_type;
-
+  if (failed(verifySameTypeOperands(*this)))
+    return failure();
   return success();
 }
 
 //===-------------------------------------------------------------------===//
-// InvertOp
+// TableGen
 //===-------------------------------------------------------------------===//
 
-LogicalResult pylang::InvertOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType>(
-          res_type))
-    return emitOpError("InvertOp supports int only, "
-                       "current type is ")
-           << res_type;
-  return success();
+mlir::Type getPylangBoolSameShape(mlir::Type type) {
+  return mlir::pylang::BoolType::get(type.getContext());
 }
-
-//===-------------------------------------------------------------------===//
-// NotOp
-//===-------------------------------------------------------------------===//
-
-LogicalResult pylang::NotOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::BoolType, pylang::FloatType>(
-          res_type))
-    return emitOpError("NotOp supports int, float and bool only, "
-                       "current type is ")
-           << res_type;
-  return success();
-}
-
-//===-------------------------------------------------------------------===//
-// UAddOp
-//===-------------------------------------------------------------------===//
-
-LogicalResult pylang::UAddOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(
-          res_type))
-    return emitOpError("UAddOp supports int and float only, "
-                       "current type is ")
-           << res_type;
-  return success();
-}
-
-//===-------------------------------------------------------------------===//
-// USubOp
-//===-------------------------------------------------------------------===//
-
-LogicalResult pylang::USubOp::verify() {
-  Type res_type = getResult().getType();
-  if (!llvm::isa<pylang::IntegerType, pylang::FloatType>(
-          res_type))
-    return emitOpError("USubOp supports int and float only, "
-                       "current type is ")
-           << res_type;
-  return success();
-}
+#define GET_OP_CLASSES
+#include "pylang/IR/PylangEnums.cpp.inc"
+#include "pylang/IR/PylangOps.cpp.inc"

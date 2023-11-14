@@ -89,12 +89,35 @@ PYBIND11_MODULE(PylangCompiler, m) {
            py::arg("rhs"), py::arg("loc"), "Create pylang.bitand")
       .def("createFloorDiv", &Compiler::createFloorDiv, py::arg("lhs"),
            py::arg("rhs"), py::arg("loc"), "Create pylang.floordiv")
+      .def("createFloorDiv", &Compiler::createFloorDiv, py::arg("lhs"),
+           py::arg("rhs"), py::arg("loc"), "Create pylang.floordiv")
+      .def("createAnd", &Compiler::createAnd, py::arg("operands"),
+           py::arg("loc"), "Create pylang.and")
+      .def("createOr", &Compiler::createOr, py::arg("operands"), py::arg("loc"),
+           "Create pylang.or")
+      .def("createCmp", &Compiler::createCmp, py::arg("operands"),
+           py::arg("predicate"), py::arg("loc"), "Create pylang.cmp")
+      .def("createInvert", &Compiler::createInvert, py::arg("operand"),
+           py::arg("loc"), "Create pylang.invert")
+      .def("createNot", &Compiler::createNot, py::arg("operand"),
+           py::arg("loc"), "Create pylang.not")
+      .def("createUAdd", &Compiler::createUAdd, py::arg("operand"),
+           py::arg("loc"), "Create pylang.uadd")
+      .def("createUSub", &Compiler::createUSub, py::arg("operand"),
+           py::arg("loc"), "Create pylang.usub")
       .def("lowerToLLVM", &Compiler::lowerToLLVM, "Lower pylang to llvm")
       .def("dump", &Compiler::dump)
       .def("emitLLVMIR", &Compiler::emitLLVMIR)
       .def("runJIT", &Compiler::runJIT);
   py::class_<LocationAdaptor, FileLineColLocAdaptor>(m, "FileLineColLocAdaptor")
       .def(py::init<string, unsigned, unsigned>());
+  py::enum_<pylang::CmpPredicate>(m, "CmpPredicate")
+      .value("EQ", pylang::CmpPredicate::EQ)
+      .value("NEQ", pylang::CmpPredicate::NEQ)
+      .value("LT", pylang::CmpPredicate::LT)
+      .value("LTE", pylang::CmpPredicate::LTE)
+      .value("GT", pylang::CmpPredicate::GT)
+      .value("GTE", pylang::CmpPredicate::GTE);
 }
 
 //===-------------------------------------------------------------------===//
@@ -424,14 +447,17 @@ unsigned Compiler::createPow(unsigned lhs_ssa, unsigned rhs_ssa,
               lhs.getType()) &&
           isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(
               rhs.getType())));
-  if(isa<pylang::FloatType>(rhs_t) && !isa<pylang::FloatType>(lhs_t))
+  if (isa<pylang::FloatType>(rhs_t) && !isa<pylang::FloatType>(lhs_t))
     lhs = builder->create<pylang::CastOp>(loc, rhs_t, lhs);
   else {
-    // TODO: optimize. True ** Any = 1 or 1.0. False ** 0 = 1 or 1.0, False ** others = 0 or 0.0
-    if(isa<pylang::BoolType>(lhs_t))
-      lhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), lhs);
-    if(isa<pylang::BoolType>(rhs_t))
-      rhs = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), rhs);
+    // TODO: optimize. True ** Any = 1 or 1.0. False ** 0 = 1 or 1.0, False **
+    // others = 0 or 0.0
+    if (isa<pylang::BoolType>(lhs_t))
+      lhs = builder->create<pylang::CastOp>(
+          loc, pylang::IntegerType::get(ctx, 32), lhs);
+    if (isa<pylang::BoolType>(rhs_t))
+      rhs = builder->create<pylang::CastOp>(
+          loc, pylang::IntegerType::get(ctx, 32), rhs);
   }
   Value res = builder->create<pylang::PowOp>(loc, lhs, rhs);
   return insertSSAValue(res);
@@ -517,6 +543,100 @@ unsigned Compiler::createFloorDiv(unsigned lhs_ssa, unsigned rhs_ssa,
   binaryOpTypeCast(builder, loc, lhs, rhs);
   res = builder->create<pylang::FloorDivOp>(loc, lhs, rhs);
   return insertSSAValue(res);
+}
+
+unsigned Compiler::createAnd(std::vector<unsigned> ssas,
+                             LocationAdaptor *loc_adaptor) {
+  assert(ssas.size() > 1 && "And operation requires at least 2 operands");
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(ssas[0], loc), rhs = getValueBySSA(ssas[1], loc);
+  if (lhs.getType() != rhs.getType())
+    lhs = builder->create<pylang::CastOp>(loc, rhs.getType(), lhs);
+  Value res = builder->create<pylang::AndOp>(loc, lhs, rhs);
+  if (ssas.size() == 2)
+    return insertSSAValue(res);
+
+  // TODO: Add multiple operands and op(after add unknown type).
+  return 0;
+}
+
+unsigned Compiler::createOr(std::vector<unsigned> ssas,
+                            LocationAdaptor *loc_adaptor) {
+  assert(ssas.size() > 1 && "Or operation requires at least 2 operands");
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(ssas[0], loc), rhs = getValueBySSA(ssas[1], loc);
+  if (lhs.getType() != rhs.getType())
+    lhs = builder->create<pylang::CastOp>(loc, rhs.getType(), lhs);
+  Value res = builder->create<pylang::OrOp>(loc, lhs, rhs);
+  if (ssas.size() == 2)
+    return insertSSAValue(res);
+
+  // TODO: Add multiple operands or op(after add unknown type).
+  return 0;
+}
+
+unsigned Compiler::createCmp(std::vector<unsigned> ssas,
+                             std::vector<pylang::CmpPredicate> predicates,
+                             LocationAdaptor *loc_adaptor) {
+  assert(ssas.size() > 1 && "Cmp operation requires at least 2 operands");
+  assert(predicates.size() == ssas.size() - 1 &&
+         "number of predicates must equal to number of ssas minus one");
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value lhs = getValueBySSA(ssas[0], loc), rhs = getValueBySSA(ssas[1], loc);
+  binaryOpTypeCast(builder, loc, lhs, rhs);
+  Value res = builder->create<pylang::CmpOp>(loc, predicates[0], lhs, rhs);
+  if (ssas.size() == 2)
+    return insertSSAValue(res);
+
+  // TODO: add continuous compare
+  return 0;
+}
+
+unsigned Compiler::createInvert(unsigned ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value operand = getValueBySSA(ssa, loc);
+  if(isa<pylang::BoolType>(operand.getType()))
+    operand = builder->create<pylang::CastOp>(loc, pylang::IntegerType::get(ctx, 32), operand);
+  Value neg1 = builder->create<pylang::ConstantOp>(
+      loc, pylang::IntegerType::get(ctx, 32),
+      IntegerAttr::get(IntegerType::get(ctx, 32), -1));
+  return insertSSAValue(builder->create<pylang::BitXorOp>(loc, operand, neg1));
+}
+
+unsigned Compiler::createNot(unsigned ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value operand = getValueBySSA(ssa, loc);
+  Value b =
+      builder->create<pylang::CastOp>(loc, pylang::BoolType::get(ctx), operand);
+  Value t = builder->create<pylang::ConstantOp>(loc, pylang::BoolType::get(ctx),
+                                                BoolAttr::get(ctx, true));
+  return insertSSAValue(builder->create<pylang::BitXorOp>(loc, b, t));
+}
+
+unsigned Compiler::createUAdd(unsigned ssa, LocationAdaptor *loc_adaptor) {
+  // unused currently
+  return 0;
+}
+
+unsigned Compiler::createUSub(unsigned ssa, LocationAdaptor *loc_adaptor) {
+  Location loc = loc_adaptor->getLoc(ctx);
+  Value operand = getValueBySSA(ssa, loc);
+  assert((isa<pylang::FloatType, pylang::IntegerType, pylang::BoolType>(
+              operand.getType()) &&
+          "input type should be either float, int or bool"));
+  Value zero;
+  if (isa<pylang::FloatType>(operand.getType()))
+    zero = builder->create<pylang::ConstantOp>(
+        loc, pylang::FloatType::get(ctx),
+        FloatAttr::get(Float64Type::get(ctx), .0));
+  else
+    zero = builder->create<pylang::ConstantOp>(
+        loc, pylang::IntegerType::get(ctx, 32),
+        IntegerAttr::get(IntegerType::get(ctx, 32), 0));
+  if (isa<pylang::BoolType>(operand.getType()))
+    operand = builder->create<pylang::CastOp>(
+        loc, pylang::IntegerType::get(ctx, 32), operand);
+  return insertSSAValue(builder->create<pylang::SubOp>(loc, zero, operand));
 }
 
 //===-------------------------------------------------------------------===//

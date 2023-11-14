@@ -161,9 +161,4 @@ def Unknown : Pylang_Type<"Unknown", "unknown"> {
     let summary = "unknown";
 }
 
-
-def BaseType : AnyTypeOf<
-        [None, Int, Float, Bool, String, List, Tuple, Set, Dict],
-        "python base type">;
-
 #endif // PYLANG_TYPES

@@ -26,6 +26,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "pylang/IR/PylangDialect.td"
 include "pylang/IR/PylangTypes.td"
 include "pylang/IR/PylangAttributes.td"
+include "pylang/IR/PylangConstraints.td"
 
 class Pylang_Op<string mnemonic, list<Trait> traits = []> :
     Op<Pylang_Dialect, mnemonic, traits>;
@@ -42,17 +43,33 @@ class Pylang_Binary_Same_Type_Op<string mnemonic, list<Trait> traits = []> :
       let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($result)";
     }
 
+class Pylang_Binary_Same_Type_Int_Op<string mnemonic, list<Trait> traits = []> :
+    Pylang_Binary_Same_Type_Op<mnemonic, traits> {
+      let arguments = (ins Int:$lhs, Int:$rhs);
+      let results = (outs Int:$result);
+    }
+
+class Pylang_Binary_Same_Type_Number_Op<string mnemonic, list<Trait> traits = []> :
+    Pylang_Binary_Same_Type_Op<mnemonic, traits> {
+      let arguments = (ins NumberType:$lhs, NumberType:$rhs);
+      let results = (outs NumberType:$result);
+    }
+
+class Pylang_Binary_Same_Type_Basic2_Op<string mnemonic, list<Trait> traits = []> :
+    Pylang_Binary_Same_Type_Op<mnemonic, traits> {
+      let arguments = (ins Basic2Type:$lhs, Basic2Type:$rhs);
+      let results = (outs Basic2Type:$result);
+    }
+
+class Pylang_Binary_Same_Type_Basic3_Op<string mnemonic, list<Trait> traits = []> :
+    Pylang_Binary_Same_Type_Op<mnemonic, traits> {
+      let arguments = (ins Basic3Type:$lhs, Basic3Type:$rhs);
+      let results = (outs Basic3Type:$result);
+    }
+
 class Pylang_Binary_Different_Type_Op<string mnemonic, list<Trait> traits = []> :
     Pylang_Binary_Op<mnemonic, traits> {
       let assemblyFormat = "$lhs `,` $rhs attr-dict `:` `(` type($lhs) `,` type($rhs) `)` `->` type($result)";
-    }
-
-class Pylang_Unary_Op<string mnemonic, list<Trait> traits = []> :
-    Pylang_Op<mnemonic, traits # [SameOperandsAndResultType]> {
-      let arguments = (ins AnyType:$input);
-      let results = (outs AnyType:$result);
-      let assemblyFormat = "$input attr-dict `:` type($result)";
-      let hasVerifier = 1;
     }
 
 //===----------------------------------------------------------------------===//
@@ -67,7 +84,7 @@ def ConstantOp : Pylang_Op<"Constant", [ConstantLike, Pure]> {
     let summary = "Python Integer, Float, String and Boolean type constant";
 
     let arguments = (ins TypedAttrInterface:$value);
-    let results = (outs BaseType:$result);
+    let results = (outs PylangBaseType:$result);
 
     let hasFolder = 1;
     let assemblyFormat = "attr-dict $value `:` type($result)";
@@ -77,7 +94,7 @@ def ConstantOp : Pylang_Op<"Constant", [ConstantLike, Pure]> {
 def TupleOp : Pylang_Op<"Tuple", []> {
     let summary = "Python tuple creator";
     
-    let arguments = (ins Variadic<BaseType>:$operands);
+    let arguments = (ins Variadic<PylangBaseType>:$operands);
     let results = (outs Tuple:$results);
 
     let hasCustomAssemblyFormat = 1;
@@ -91,8 +108,8 @@ def TupleOp : Pylang_Op<"Tuple", []> {
 def CastOp : Pylang_Op<"Cast", [DeclareOpInterfaceMethods<CastOpInterface>]> {
     let summary = "cast type to another type";
 
-    let arguments = (ins BaseType:$value);
-    let results = (outs BaseType:$result);
+    let arguments = (ins PylangBaseType:$value);
+    let results = (outs PylangBaseType:$result);
 
     let hasCustomAssemblyFormat = 1;
     let hasVerifier = 1;
@@ -146,8 +163,8 @@ def CallOp : Pylang_Op<"Call",
     DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "pylang call operation";
   let arguments = (ins FlatSymbolRefAttr:$callee,
-                       Variadic<BaseType>:$operands);
-  let results = (outs Optional<BaseType>:$result);
+                       Variadic<PylangBaseType>:$operands);
+  let results = (outs Optional<PylangBaseType>:$result);
   let extraClassDeclaration = [{
     /// Returns the callee function type.
     FunctionType getCalleeFunctionType();
@@ -188,7 +205,7 @@ def ReturnOp : Pylang_Op<"Return", [Pure, HasParent<"FuncOp">, Terminator]> {
 //
 //===----------------------------------------------------------------------===//
 
-def AddOp : Pylang_Binary_Same_Type_Op<"Add", [Commutative]> {
+def AddOp : Pylang_Binary_Same_Type_Number_Op<"Add", [Commutative]> {
   let summary = "pylang add operation";
   let description = [{
     Pylang add op supports int + int, float + float.
@@ -222,7 +239,7 @@ def UnknownAddOp : Pylang_Binary_Different_Type_Op<"UnknownAdd", []> {
   ];
 }
 
-def SubOp : Pylang_Binary_Same_Type_Op<"Sub", []> {
+def SubOp : Pylang_Binary_Same_Type_Number_Op<"Sub", []> {
   let summary = "pylang subtraction operation";
   let description = [{
       Pylang sub op supports int - int, float - float.
@@ -245,7 +262,7 @@ def UnknownSubOp : Pylang_Binary_Different_Type_Op<"UnknownSub", []> {
   ];
 }
 
-def MulOp : Pylang_Binary_Same_Type_Op<"Mul", []> {
+def MulOp : Pylang_Binary_Same_Type_Number_Op<"Mul", []> {
   let summary = "pylang multiplication operation";
   let description = [{
       Pylang mul op supports int * int, float * float.
@@ -263,9 +280,11 @@ def DivOp : Pylang_Binary_Same_Type_Op<"Div", []> {
       If ? / bool is required, bool should be casted to float.
       If an object defines __truediv__ method, then it should call __truediv__ instead of using DivOp
   }];
+  let arguments = (ins Float:$lhs, Float:$rhs);
+  let results = (outs Float:$result);
 }
 
-def ModOp : Pylang_Binary_Same_Type_Op<"Mod", []> {
+def ModOp : Pylang_Binary_Same_Type_Number_Op<"Mod", []> {
   let summary = "pylang mod operation";
   let description = [{
       Pylang mod op supports int % int, float % float.
@@ -282,6 +301,8 @@ def PowOp : Pylang_Binary_Different_Type_Op<"Pow", []> {
       If ? ** bool is required, bool should be casted to int.
       If an object defines __pow__ method, then it should call __pow__ instead of using PowOp
   }];
+  let arguments = (ins Basic2Type:$lhs, Basic2Type:$rhs);
+  let results = (outs Basic2Type:$result);
   let builders = [
     OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
       if(::llvm::isa<pylang::IntegerType>(lhs.getType()) && ::llvm::isa<pylang::IntegerType>(rhs.getType()))
@@ -294,7 +315,7 @@ def PowOp : Pylang_Binary_Different_Type_Op<"Pow", []> {
   ];
 }
 
-def LShiftOp : Pylang_Binary_Same_Type_Op<"LShift", []> {
+def LShiftOp : Pylang_Binary_Same_Type_Int_Op<"LShift", []> {
   let summary = "pylang left shift operation";
   let description = [{
       Pylang lshift op supports int << int.
@@ -303,7 +324,7 @@ def LShiftOp : Pylang_Binary_Same_Type_Op<"LShift", []> {
   }];
 }
 
-def RShiftOp : Pylang_Binary_Same_Type_Op<"RShift", []> {
+def RShiftOp : Pylang_Binary_Same_Type_Int_Op<"RShift", []> {
   let summary = "pylang right shift operation";
   let description = [{
       Pylang rshift op supports int >> int.
@@ -312,34 +333,34 @@ def RShiftOp : Pylang_Binary_Same_Type_Op<"RShift", []> {
   }];
 }
 
-def BitOrOp : Pylang_Binary_Same_Type_Op<"BitOr", []> {
+def BitOrOp : Pylang_Binary_Same_Type_Basic2_Op<"BitOr", []> {
   let summary = "pylang bit or operation";
   let description = [{
-      Pylang bitor op supports int | int.
+      Pylang bitor op supports int | int and bool | bool.
       If bitors like int | bool is required, bool should be casted to int first.
       If an object defines __or__ method, then it should call __or__ instead of using BitOrOp
   }];
 }
 
-def BitXorOp : Pylang_Binary_Same_Type_Op<"BitXor", []> {
+def BitXorOp : Pylang_Binary_Same_Type_Basic2_Op<"BitXor", []> {
   let summary = "pylang bit xor operation";
   let description = [{
-      Pylang bitxor op supports int ^ int.
+      Pylang bitxor op supports int ^ int and bool ^ bool.
       If bitxors like int ^ bool is required, bool should be casted to int first.
       If an object defines __xor__ method, then it should call __xor__ instead of using BitXorOp
   }];
 }
 
-def BitAndOp : Pylang_Binary_Same_Type_Op<"BitAnd", []> {
+def BitAndOp : Pylang_Binary_Same_Type_Basic2_Op<"BitAnd", []> {
   let summary = "pylang bit and operation";
   let description = [{
-      Pylang bitand op supports int & int.
+      Pylang bitand op supports int & int and bool & bool.
       If bitands like int & bool is required, bool should be casted to int first.
       If an object defines __and__ method, then it should call __and__ instead of using BitAndOp
   }];
 }
 
-def FloorDivOp : Pylang_Binary_Same_Type_Op<"FloorDiv", []> {
+def FloorDivOp : Pylang_Binary_Same_Type_Number_Op<"FloorDiv", []> {
   let summary = "pylang floor div operation";
   let description = [{
       Pylang floor div op supports int // int, float // float.
@@ -349,7 +370,7 @@ def FloorDivOp : Pylang_Binary_Same_Type_Op<"FloorDiv", []> {
   }];
 }
 
-def AndOp : Pylang_Binary_Same_Type_Op<"And", []> {
+def AndOp : Pylang_Binary_Same_Type_Basic3_Op<"And", []> {
   let summary = "pylang and operation";
   let description = [{
       Pylang and op supports int && int, float && float, bool && bool.
@@ -357,7 +378,7 @@ def AndOp : Pylang_Binary_Same_Type_Op<"And", []> {
   }];
 }
 
-def OrOp : Pylang_Binary_Same_Type_Op<"Or", []> {
+def OrOp : Pylang_Binary_Same_Type_Basic3_Op<"Or", []> {
   let summary = "pylang or operation";
   let description = [{
       Pylang or op supports int || int, float || float, bool || bool.
@@ -365,52 +386,19 @@ def OrOp : Pylang_Binary_Same_Type_Op<"Or", []> {
   }];
 }
 
-def CmpOp : Pylang_Binary_Different_Type_Op<"Cmp", []> {
+def CmpOp : Pylang_Op<"Cmp", [Pure, SameTypeOperands, TypesMatchWith<
+    "result type has bool element type and same shape as operands",
+    "lhs", "result", "::getPylangBoolSameShape($_self)">]> {
   let summary = "pylang cmp operation";
   let description = [{
       Pylang and op supports int (cmp) int, float (cmp) float.
       If an object defines __(cmp)__ method, then it should call __(cmp)__ instead of using AndOp.
   }];
-  let builders = [
-    OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
-      build($_builder, $_state, pylang::BoolType::get($_builder.getContext()), lhs, rhs);
-    }]>
-  ];
-}
+  let arguments = (ins Pylang_CmpPredicateAttr:$predicate, Basic3Type:$lhs, Basic3Type:$rhs);
+  let results = (outs Bool:$result);
 
-//===----------------------------------------------------------------------===//
-//
-//                           Unary Operations
-//
-//===----------------------------------------------------------------------===//
-
-def InvertOp : Pylang_Unary_Op<"Invert", []> {
-  let summary = "pylang invert operation";
-  let description = [{
-    Pylang invert op supports ~int.
-  }];
-}
-
-def NotOp : Pylang_Unary_Op<"Not", []> {
-  let summary = "pylang not operation";
-  let description = [{
-    Pylang not op supports not bool/float/int, and returns bool.
-  }];
-}
-
-def UAddOp : Pylang_Unary_Op<"UAdd", []> {
-  let summary = "pylang uadd operation";
-  let description = [{
-    Pylang uadd op supports +int, +float.
-    [[Maybe useless]]
-  }];
-}
-
-def USubOp : Pylang_Unary_Op<"USub", []> {
-  let summary = "pylang usub operation";
-  let description = [{
-    Pylang usub op supports -int, -float.
-  }];
+  let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($lhs)";
+  let hasVerifier = 1;
 }
 
 #endif // PYLANG_OPS

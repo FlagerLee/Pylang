@@ -12,19 +12,158 @@
 # limitations under the License.
 #
 
-print(2 + 3)
-print(2 - 3)
-print(2 * 3)
-print(2 / 3)
-print(3 % 2)
-print(2 ** 3)
-print(2 << 3)
-print(18 >> 2)
-print(2 | 3)
-print(2 ^ 3)
-print(2 & 3)
-print(18 // 4)
-print((7 - 4) % (1 - 3))
-print(3 % 2.2)
-print(3 % (1 - 3.2))
+i1 = 17
+i2 = 3
+f1 = 15.7
+f2 = 2.9
+b1 = True
+b2 = False
 
+# Add test
+print(i1 + i2)
+print(i1 + f1)
+print(i1 + b1)
+print(f1 + f2)
+print(f1 + i1)
+print(f1 + b1)
+print(b1 + b2)
+print(b1 + f1)
+print(b1 + i1)
+print()
+
+# Sub test
+print(i1 - i2)
+print(i1 - f1)
+print(i1 - b1)
+print(f1 - i1)
+print(f1 - f2)
+print(f1 - b1)
+print(b1 - i1)
+print(b1 - f1)
+print(b1 - b2)
+print()
+
+# Mul test
+print(i1 * i2)
+print(i1 * f1)
+print(i1 * b1)
+print(f1 * i1)
+print(f1 * f2)
+print(f1 * b1)
+print(b1 * i1)
+print(b1 * f1)
+print(b1 * b2)
+print()
+
+# Div test
+print(i1 / i2)
+print(i1 / f1)
+print(i1 / b1)
+print(f1 / i1)
+print(f1 / f2)
+print(f1 / b1)
+print(b1 / i1)
+print(b1 / f1)
+print(b2 / b1)
+print()
+
+# Modulo test
+print(i1 % i2)
+print(i1 % f1)
+print(i1 % b1)
+print(f1 % i2)
+print(f1 % f2)
+print(f1 % b1)
+print(b1 % i1)
+print(b1 % f1)
+print(b2 % b1)
+print()
+
+# pow test
+print(i1 ** i2)
+print(i1 ** f1)
+print(i1 ** b1)
+print(f1 ** i1)
+print(f1 ** f2)
+print(f1 ** b1)
+print(b1 ** i1)
+print(b1 ** f1)
+print(b1 ** b2)
+print()
+
+# lshift test
+print(i1 << i2)
+print(i1 << b1)
+print(b1 << i1)
+print(b1 << b2)
+print()
+
+# rshift test
+print(i1 >> i2)
+print(i1 >> b1)
+print(b1 >> i1)
+print(b1 >> b2)
+print()
+
+# bitor test
+print(i1 | i2)
+print(i1 | b1)
+print(b1 | i1)
+print(b1 | b2)
+print()
+
+# bitxor test
+print(i1 ^ i2)
+print(i1 ^ b1)
+print(b1 ^ i1)
+print(b1 ^ b2)
+print()
+
+# bitand test
+print(i1 & i2)
+print(i1 & b1)
+print(b1 & i1)
+print(b1 & b2)
+print()
+
+# floordiv test
+print(i1 // i2)
+print(i1 // f1)
+print(i1 // b1)
+print(f1 // i1)
+print(f1 // f2)
+print(f1 // b1)
+print(b1 // i1)
+print(b1 // f1)
+print(b2 // b1)
+print()
+
+# usub test
+print(-i1)
+print(-f1)
+print(-b1)
+print()
+
+# uadd test
+print(+i1)
+print(+f1)
+print(+b1)
+print()
+
+# invert test
+print(~i1)
+print(~b1)
+print()
+
+# not test
+print(not i1)
+print(not f1)
+print(not b1)
+print(not b2)
+print()
+
+# compare test
+print(2 < 3)
+print(2 == 3)
+print(2 != 3)
+print(2 > 3)
