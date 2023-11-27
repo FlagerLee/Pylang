@@ -27,20 +27,20 @@
 // }
 
 module {
-llvm.mlir.global internal constant @none("None\00")
-llvm.mlir.global internal constant @int_fmt("%d\00")
-llvm.mlir.global internal constant @float_fmt("%lf\00")
-llvm.mlir.global internal constant @true("True\00")
-llvm.mlir.global internal constant @false("False\00")
-llvm.mlir.global internal constant @string_fmt("%s\00")
-llvm.mlir.global internal constant @ws(" \00")
-llvm.mlir.global internal constant @nl("\n\00")
-llvm.mlir.global internal constant @no_type("Error: no support for current type, typeid = %d\n\00")
+llvm.mlir.global internal constant @STR_NONE("None\00")
+llvm.mlir.global internal constant @STR_FMT_INT("%d\00")
+llvm.mlir.global internal constant @STR_FMT_FLOAT("%lf\00")
+llvm.mlir.global internal constant @STR_TRUE("True\00")
+llvm.mlir.global internal constant @STR_FALSE("False\00")
+llvm.mlir.global internal constant @STR_FMT_STRING("%s\00")
+llvm.mlir.global internal constant @STR_WS(" \00")
+llvm.mlir.global internal constant @STR_NL("\n\00")
+llvm.mlir.global internal constant @STR_ERR_NO_TYPE("Error: no support for current type, typeid = %d\n\00")
 
 llvm.func @printf(%arg: !llvm.ptr<i8>, ...) -> i32
 
 llvm.func internal @print_none(%0: i32) {
-    %addr = llvm.mlir.addressof @none : !llvm.ptr<array<5 x i8>>
+    %addr = llvm.mlir.addressof @STR_NONE : !llvm.ptr<array<5 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<5 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
@@ -48,7 +48,7 @@ llvm.func internal @print_none(%0: i32) {
 
 llvm.func internal @print_int(%1: i32) {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @int_fmt : !llvm.ptr<array<3 x i8>>
+    %addr = llvm.mlir.addressof @STR_FMT_INT : !llvm.ptr<array<3 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<3 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, i32) -> i32
     llvm.return
@@ -56,7 +56,7 @@ llvm.func internal @print_int(%1: i32) {
 
 llvm.func internal @print_float(%1: f64) {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @float_fmt : !llvm.ptr<array<4 x i8>>
+    %addr = llvm.mlir.addressof @STR_FMT_FLOAT : !llvm.ptr<array<4 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<4 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, f64) -> i32
     llvm.return
@@ -68,12 +68,12 @@ llvm.func internal @print_bool(%1: i1) {
     %is_true = llvm.icmp "eq" %zero, %1 : i1
     llvm.cond_br %is_true, ^false, ^true
 ^true:
-    %addr_t = llvm.mlir.addressof @true : !llvm.ptr<array<5 x i8>>
+    %addr_t = llvm.mlir.addressof @STR_TRUE : !llvm.ptr<array<5 x i8>>
     %ptr_t = llvm.getelementptr %addr_t[%0, %0] : (!llvm.ptr<array<5 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res_t = llvm.call @printf(%ptr_t) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
 ^false:
-    %addr_f = llvm.mlir.addressof @false : !llvm.ptr<array<6 x i8>>
+    %addr_f = llvm.mlir.addressof @STR_FALSE : !llvm.ptr<array<6 x i8>>
     %ptr_f = llvm.getelementptr %addr_f[%0, %0] : (!llvm.ptr<array<6 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res_f = llvm.call @printf(%ptr_f) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
@@ -81,7 +81,7 @@ llvm.func internal @print_bool(%1: i1) {
 
 llvm.func internal @print_string(%1: !llvm.ptr<i8>) {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @string_fmt : !llvm.ptr<array<3 x i8>>
+    %addr = llvm.mlir.addressof @STR_FMT_STRING : !llvm.ptr<array<3 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<3 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> i32
     llvm.return
@@ -89,7 +89,7 @@ llvm.func internal @print_string(%1: !llvm.ptr<i8>) {
 
 llvm.func internal @print_ws() {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @ws : !llvm.ptr<array<2 x i8>>
+    %addr = llvm.mlir.addressof @STR_WS : !llvm.ptr<array<2 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<2 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
@@ -97,7 +97,7 @@ llvm.func internal @print_ws() {
 
 llvm.func internal @print_nl() {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @nl : !llvm.ptr<array<2 x i8>>
+    %addr = llvm.mlir.addressof @STR_NL : !llvm.ptr<array<2 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<2 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>) -> i32
     llvm.return
@@ -105,13 +105,13 @@ llvm.func internal @print_nl() {
 
 llvm.func internal @print_no_type(%1: i32) {
     %0 = llvm.mlir.constant(0: i32) : i32
-    %addr = llvm.mlir.addressof @no_type : !llvm.ptr<array<49 x i8>>
+    %addr = llvm.mlir.addressof @STR_ERR_NO_TYPE : !llvm.ptr<array<49 x i8>>
     %ptr = llvm.getelementptr %addr[%0, %0] : (!llvm.ptr<array<49 x i8>>, i32, i32) -> !llvm.ptr<i8>
     %res = llvm.call @printf(%ptr, %1) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr<i8>, i32) -> i32
     llvm.return
 }
 
-llvm.func @print(%arg0: !llvm.ptr<struct<(ptr<struct<(ptr, i32)>>, i32)>>) attributes{func_wrapper = #pylang.FNARGS} {
+llvm.func external @print(%arg0: !llvm.ptr<struct<(ptr<struct<(ptr, i32)>>, i32)>>) attributes{func_wrapper = #pylang.FNARGS} {
     // get tuple
     %entry = llvm.load %arg0 : !llvm.ptr<struct<(ptr<struct<(ptr, i32)>>, i32)>>
     %entry_data = llvm.extractvalue %entry[0] : !llvm.struct<(ptr<struct<(ptr, i32)>>, i32)>
