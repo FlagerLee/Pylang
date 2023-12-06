@@ -13,3 +13,6 @@
 [submodule "third-party/llvm-project"]
 	path = third-party/llvm-project
 	url = git@github.com:llvm/llvm-project.git
+[submodule "third-party/googletest"]
+	path = third-party/googletest
+	url = git@github.com:google/googletest.git

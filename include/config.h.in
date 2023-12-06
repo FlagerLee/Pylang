@@ -15,12 +15,7 @@
 #ifndef PYLANG_CONFIG_
 #define PYLANG_CONFIG_
 
-#include <fmt/format.h>
-
-static const std::string BUILTIN_FUNCTION_PATH = "${PROJECT_SOURCE_DIR}/lib/Dialect/Transforms/builtins/";
-
-std::string get_builtin_function_file_path(const std::string &func_name) {
-  return fmt::format("{}{}.mlir", BUILTIN_FUNCTION_PATH, func_name);
-}
+#cmakedefine PTR_BIT_WIDTH @PTR_BIT_WIDTH@
+#cmakedefine HAVE_LE64TOH
 
 #endif // PYLANG_CONFIG_

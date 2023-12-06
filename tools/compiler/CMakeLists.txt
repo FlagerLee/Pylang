@@ -1,4 +1,63 @@
 pybind11_add_module(PylangCompiler PylangCompiler.cpp)
+
+llvm_config(PylangCompiler
+        aarch64info
+        amdgpuinfo
+        arminfo
+        avrinfo
+        bpfinfo
+        hexagoninfo
+        lanaiinfo
+        loongarchinfo
+        mipsinfo
+        msp430info
+        nvptxinfo
+        powerpcinfo
+        riscvinfo
+        sparcinfo
+        systemzinfo
+        veinfo
+        webassemblyinfo
+        x86info
+        xcoreinfo
+        aarch64codegen
+        amdgpucodegen
+        armcodegen
+        avrcodegen
+        bpfcodegen
+        hexagoncodegen
+        lanaicodegen
+        loongarchcodegen
+        mipscodegen
+        msp430codegen
+        nvptxcodegen
+        powerpccodegen
+        riscvcodegen
+        sparccodegen
+        systemzcodegen
+        vecodegen
+        webassemblycodegen
+        x86codegen
+        xcorecodegen
+        aarch64asmparser
+        amdgpuasmparser
+        armasmparser
+        avrasmparser
+        bpfasmparser
+        hexagonasmparser
+        lanaiasmparser
+        loongarchasmparser
+        mipsasmparser
+        msp430asmparser
+        powerpcasmparser
+        riscvasmparser
+        sparcasmparser
+        systemzasmparser
+        veasmparser
+        webassemblyasmparser
+        x86asmparser
+        )
+
 target_link_libraries(PylangCompiler
         PUBLIC
         PylangConversion
@@ -19,6 +78,7 @@ target_link_libraries(PylangCompiler
         MLIRPass
         MLIRSideEffectInterfaces
         MLIRSupport
+        MLIRTargetLLVM
         MLIRTargetLLVMIRExport
         MLIRTransforms
         MLIRFuncToLLVM
@@ -30,6 +90,5 @@ target_link_libraries(PylangCompiler
         MLIROpenMPToLLVM
         MLIRBuiltinToLLVMIRTranslation
         MLIRLLVMToLLVMIRTranslation
-        MLIRTargetLLVMIRExport
         MLIRVectorToLLVM
         )

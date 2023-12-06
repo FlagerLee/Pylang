@@ -1,0 +1,10 @@
+type mapping:
+0: None
+1: Int
+2: Float
+3: Bool
+4: String
+5: List
+6: Dict
+7: Set
+8: Object

@@ -1,3 +1,5 @@
+add_subdirectory(builtins)
+
 set(LLVM_OPTIONAL_SOURCES
         PylangBuiltinFunctionsUtils.cpp
         PylangConversion.cpp

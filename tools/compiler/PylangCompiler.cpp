@@ -26,6 +26,7 @@
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
+#include "mlir/ExecutionEngine/JitRunner.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -655,6 +656,11 @@ bool Compiler::lowerToLLVM() {
   return res;
 }
 
+// #include "llvm/IR/LegacyPassManager.h"
+// #include "llvm/MC/TargetRegistry.h"
+// #include "llvm/Target/TargetMachine.h"
+// #include "llvm/Target/TargetOptions.h"
+// #include "llvm/TargetParser/Host.h"
 bool Compiler::emitLLVMIR() {
   mlir::registerBuiltinDialectTranslation(*mod->getContext());
   mlir::registerLLVMDialectTranslation(*mod->getContext());
@@ -665,7 +671,62 @@ bool Compiler::emitLLVMIR() {
     llvm::errs() << "Failed to emit LLVM IR\n";
     return false;
   }
-  llvmModule->dump();
+  llvmModule->print(llvm::errs(), nullptr);
+  // print module to object file
+  // cause error currently
+  /*
+  using namespace llvm;
+  // Initialize the target registry etc.
+  InitializeAllTargetInfos();
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
+  InitializeAllAsmPrinters();
+
+  auto TargetTriple = sys::getDefaultTargetTriple();
+  llvmModule->setTargetTriple(TargetTriple);
+
+  std::string Error;
+  auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
+
+  // Print an error and exit if we couldn't find the requested target.
+  // This generally occurs if we've forgotten to initialise the
+  // TargetRegistry or we have a bogus target triple.
+  if (!Target) {
+    errs() << Error;
+    return false;
+  }
+
+  auto CPU = "generic";
+  auto Features = "";
+
+  TargetOptions opt;
+  auto RM = std::optional<Reloc::Model>();
+  auto TheTargetMachine =
+      Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+
+  llvmModule->setDataLayout(TheTargetMachine->createDataLayout());
+
+  auto Filename = "output.o";
+  std::error_code EC;
+  raw_fd_ostream dest(Filename, EC, sys::fs::OF_None);
+
+  if (EC) {
+    errs() << "Could not open file: " << EC.message();
+    return false;
+  }
+
+  legacy::PassManager pass;
+  auto FileType = CodeGenFileType::ObjectFile;
+
+  if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
+    errs() << "TheTargetMachine can't emit a file of this type";
+    return false;
+  }
+
+  pass.run(*llvmModule);
+  dest.flush();
+  */
   return true;
 }
 
@@ -674,14 +735,18 @@ void Compiler::runJIT() {
   llvm::InitializeNativeTargetAsmPrinter();
   mlir::registerBuiltinDialectTranslation(*mod->getContext());
   mlir::registerLLVMDialectTranslation(*mod->getContext());
-  auto maybeEngine = mlir::ExecutionEngine::create(mod);
+  mlir::ExecutionEngineOptions options;
+  options.sharedLibPaths = {"/home/flagerlee/pylang/build/lib/libPylangLib.so"};
+  options.enableGDBNotificationListener = true;
+  options.enableObjectDump = true;
+  auto maybeEngine = mlir::ExecutionEngine::create(mod, options);
   assert(maybeEngine && "failed to construct an execution engine");
   auto &engine = maybeEngine.get();
-
   auto invocationResult = engine->invokePacked("main");
   if (invocationResult) {
     llvm::errs() << "JIT invocation failed\n";
   }
+  // engine->dumpToObjectFile("output.o");
 }
 
 unsigned Compiler::insertSSAValue(Value val) {

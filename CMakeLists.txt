@@ -64,6 +64,13 @@ add_subdirectory(third-party/fmt)
 include_directories(third-party/fmt/include)
 
 #-------------------------------------------------------------------------------
+# gtest setup
+#-------------------------------------------------------------------------------
+
+add_subdirectory(third-party/googletest)
+include_directories(${gtest_SOURCE_DIR}/include)
+
+#-------------------------------------------------------------------------------
 # PyBind setup
 #-------------------------------------------------------------------------------
 
@@ -80,6 +87,30 @@ set(PYLANG_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
 set(MLIR_ENABLE_BINDINGS_PYTHON=ON)
 
 #-------------------------------------------------------------------------------
+# Config detect
+#-------------------------------------------------------------------------------
+
+INCLUDE (CheckCXXSourceCompiles)
+INCLUDE (CheckCXXSourceRuns)
+# pointer bit width
+cmake_host_system_information(RESULT temp QUERY IS_64BIT)
+if(temp)
+    set(PTR_BIT_WIDTH 8)
+else()
+    set(PTR_BIT_WIDTH 4)
+endif()
+
+# have le64toh function
+CHECK_CXX_SOURCE_COMPILES ( "
+#include <endian.h>
+int main() { le64toh(1); }
+" HAVE_LE64TOH_CHECK
+        FAIL_REGEX "")
+if(HAVE_LE64TOH_CHECK)
+    set(HAVE_LE64TOH ON)
+endif()
+
+#-------------------------------------------------------------------------------
 # Project setup
 #-------------------------------------------------------------------------------
 
@@ -92,3 +123,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PYLANG_LIBRARY_DIR})
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
+
+# add tests
+enable_testing()
+add_subdirectory(test)

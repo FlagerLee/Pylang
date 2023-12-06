@@ -60,7 +60,7 @@ pylang::PylangTypeConverter::PylangTypeConverter(MLIRContext *context)
 
   /// convert pylang.string to llvm.ptr<i8>
   addConversion([&](pylang::StringType type) {
-    return LLVM::LLVMPointerType::get(mlir::IntegerType::get(this->context, 8));
+    return LLVM::LLVMPointerType::get(this->context);
   });
 
   addConversion([this](pylang::NoneType type) {
@@ -68,6 +68,10 @@ pylang::PylangTypeConverter::PylangTypeConverter(MLIRContext *context)
   });
 
   addConversion([this](pylang::UnknownType type) {
+    // {
+    //    void *data;
+    //    int ty;
+    // }
     auto ctx = this->context;
     return LLVM::LLVMStructType::getLiteral(
         ctx,
@@ -75,26 +79,35 @@ pylang::PylangTypeConverter::PylangTypeConverter(MLIRContext *context)
   });
 
   addConversion([this](pylang::ListType type) {
+    // {
+    //    unknown *data;
+    //    int size;
+    //    int max_size;
+    // }
     auto ctx = this->context;
-    auto unknown_struct = LLVM::LLVMStructType::getLiteral(
+    return LLVM::LLVMStructType::getLiteral(
         ctx,
-        {LLVM::LLVMPointerType::get(ctx), mlir::IntegerType::get(ctx, 32)});
-    auto entry = LLVM::LLVMStructType::getLiteral(
-        ctx,
-        {LLVM::LLVMPointerType::get(unknown_struct),
-         mlir::IntegerType::get(ctx, 32), mlir::IntegerType::get(ctx, 32)});
-    return LLVM::LLVMPointerType::get(entry);
+        {
+            LLVM::LLVMPointerType::get(ctx),
+            mlir::IntegerType::get(ctx, 32),
+            mlir::IntegerType::get(ctx, 32)
+        }
+        );
   });
 
   addConversion([this](pylang::TupleType type) {
+    // {
+    //    unknown *data;
+    //    int size;
+    // }
     auto ctx = this->context;
-    auto unknown_struct = LLVM::LLVMStructType::getLiteral(
+    return LLVM::LLVMStructType::getLiteral(
         ctx,
-        {LLVM::LLVMPointerType::get(ctx), mlir::IntegerType::get(ctx, 32)});
-    auto entry = LLVM::LLVMStructType::getLiteral(
-        ctx, {LLVM::LLVMPointerType::get(unknown_struct),
-              mlir::IntegerType::get(ctx, 32)});
-    return LLVM::LLVMPointerType::get(entry);
+        {
+            LLVM::LLVMPointerType::get(ctx),
+            mlir::IntegerType::get(ctx, 32)
+        }
+        );
   });
 }
 
@@ -124,7 +137,7 @@ Value getOrCreateGlobalString(Location loc, OpBuilder &builder, StringRef name,
                                                 builder.getIndexAttr(0));
   return builder.create<LLVM::GEPOp>(
       loc,
-      LLVM::LLVMPointerType::get(IntegerType::get(builder.getContext(), 8)),
+      LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
       globalPtr, ArrayRef<Value>({cst0, cst0}));
 }
 
@@ -134,20 +147,20 @@ Value createTuple(Location loc, OpBuilder &builder, ValueRange args,
   unsigned size = args.size();
   Value array_size = builder.create<arith::ConstantIntOp>(loc, size, 32);
   Type unknown_type = converter.convertType(pylang::UnknownType::get(ctx));
-  Type unknown_type_ptr = LLVM::LLVMPointerType::get(unknown_type);
+  Type ptr = LLVM::LLVMPointerType::get(ctx);
   Value unknown_array =
-      builder.create<LLVM::AllocaOp>(loc, unknown_type_ptr, array_size, 8);
+      builder.create<LLVM::AllocaOp>(loc, ptr, unknown_type, array_size, 8);
   for (unsigned i = 0; i < size; i++) {
     Value index = builder.create<arith::ConstantIntOp>(loc, i, 32);
-    Value ptr = builder.create<LLVM::GEPOp>(
-        loc, unknown_type_ptr, unknown_array, ValueRange{index}, true);
-    builder.create<LLVM::StoreOp>(loc, args[i], ptr);
+    Value gep = builder.create<LLVM::GEPOp>(
+        loc, ptr, unknown_type, unknown_array, ValueRange{index}, true);
+    builder.create<LLVM::StoreOp>(loc, args[i], gep);
   }
 
   // create tuple struct
   Value tuple_struct = builder.create<LLVM::UndefOp>(
       loc, LLVM::LLVMStructType::getLiteral(
-               ctx, {unknown_type_ptr, mlir::IntegerType::get(ctx, 32)}));
+               ctx, {ptr, mlir::IntegerType::get(ctx, 32)}));
   tuple_struct = builder.create<LLVM::InsertValueOp>(
       loc, tuple_struct, unknown_array, mlir::DenseI64ArrayAttr::get(ctx, {0}));
   tuple_struct = builder.create<LLVM::InsertValueOp>(
@@ -156,7 +169,7 @@ Value createTuple(Location loc, OpBuilder &builder, ValueRange args,
   // store tuple into stack
   Type tuple_type = converter.convertType(pylang::TupleType::get(ctx));
   Value tuple = builder.create<LLVM::AllocaOp>(
-      loc, tuple_type, builder.create<arith::ConstantIntOp>(loc, 1, 32), 8);
+      loc, ptr, tuple_type, builder.create<arith::ConstantIntOp>(loc, 1, 32), 8);
   builder.create<LLVM::StoreOp>(loc, tuple_struct, tuple);
   return tuple;
 }
@@ -174,20 +187,19 @@ LogicalResult convertToUnknown(Location loc, OpBuilder &builder, const Type &ty,
   }
 
   auto ctx = builder.getContext();
+  auto ptr_ty = LLVM::LLVMPointerType::get(ctx);
   Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
 
   // create unknown struct
   Value unknown_struct = builder.create<LLVM::UndefOp>(
       loc,
-      LLVM::LLVMStructType::getLiteral(ctx, {LLVM::LLVMPointerType::get(ctx),
+      LLVM::LLVMStructType::getLiteral(ctx, {ptr_ty,
                                              mlir::IntegerType::get(ctx, 32)}));
 
   // store value into stack
   Value value_storage = builder.create<LLVM::AllocaOp>(
-      loc, LLVM::LLVMPointerType::get(val.getType()), one, 8);
+      loc, ptr_ty, val.getType(), one, 8);
   builder.create<LLVM::StoreOp>(loc, val, value_storage);
-  value_storage = builder.create<LLVM::BitcastOp>(
-      loc, LLVM::LLVMPointerType::get(ctx), value_storage);
 
   // fill unknown struct
   Value type_id_value = builder.create<arith::ConstantIntOp>(loc, type_id, 32);

@@ -20,8 +20,9 @@
 #include "pylang/IR/Pylang.h"
 
 namespace mlir::pylang {
-LogicalResult createPylangBuiltinFunctionSymbolRef(PatternRewriter &, ModuleOp,
-                                                   Location, StringRef);
+LogicalResult createPylangBuiltinFunctionSymbolRef(PatternRewriter &,
+                                                   ModuleOp, Location,
+                                                   StringRef);
 }
 
 #endif // PYLANG_PYLANGBUILTINFUNCTIONSUTILS_H
